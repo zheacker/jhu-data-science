@@ -14,5 +14,3 @@ toInstall <- c(
 install.packages(toInstall, quiet=TRUE)
 
 rm(toInstall)
-
-# setwd("/opt/project")
