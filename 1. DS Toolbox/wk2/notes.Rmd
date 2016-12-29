@@ -1,0 +1,24 @@
+---
+title: "1. DS Toolbox: Week 2 Notes"
+output: html_notebook
+---
+
+# Intro
+This week is about the basic tools we're using. I know this shit. Just gonna breeze through it.
+
+## CLI
+They talk about basic CLI commands: pwd, clear, ls, cd, mkdir, touch, cp, rm, mv, echo.
+
+## Git
+I'm using gitkraken and trying out git flow for the first time. Kewl.
+
+## Basic Markdown
+They do headings and lists. Heady topics here.
+
+## Installing R Packages
+Install multiple packages: `install.packages(c("pkg1", "pkg2", "pkg3"))`. Load packages with `library(packageName)`.
+
+Since I'm using the docker images, I'll install every package required for the entire specialization during the image build process. This will mean a bloated image, but the correct packages should always just *be there*.
+
+## Installing Rtools
+These are windows tools for building R packages, which I won't need because I'm not on windows and not building R packages (yet).
