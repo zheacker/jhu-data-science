@@ -181,9 +181,9 @@ $(document).ready(function () {
 <li>a conceptual intro to data</li>
 <li>a practical intro to git/.md/R</li>
 </ol>
-<p>This class is mostly pointless as I already know most of this. So its primary use will be to learn how .Rmd notebooks behave under version control. Below, I have 2 code chunks. The first has not been run; it just says <code>plot(cars)</code> and this file was saved with that result cleared (so it’s also absent from the .nb.html file). The 2nd code chunk is exactly the same, except that the results have been executed, the plot appears below the code chunk, and the plot is present in the .nb.html file.</p>
-<p>This is an <a href="http://rmarkdown.rstudio.com">R Markdown</a> Notebook. When you execute code within the notebook, the results appear beneath the code.</p>
-<p>Try executing this chunk by clicking the <em>Run</em> button within the chunk or by placing your cursor inside it and pressing <em>Ctrl+Shift+Enter</em>.</p>
+<p>This class is mostly pointless as I already know most of this. So its primary use will be to learn how .Rmd notebooks behave under version control. RStudio recommends checking in both the .Rmd and .nb.html files, the source and output files, respectively.</p>
+<p>Below, I have 2 code chunks. The first has not been run; it just says <code>plot(cars)</code> and this file was saved with that result cleared (so it’s also absent from the .nb.html file). The 2nd code chunk is exactly the same, except that the results have been executed, the plot appears below the code chunk, and the plot is present in the .nb.html file.</p>
+<p>As you can see when you view the raw .Rmd file, these 2 code chunks are identical and no results are included in either chunk. So the R code is all that is preserved in the .Rmd file, and it is executed and rendered in the .nb.html file upon saving/previewing the .Rmd file in an R session. Kewl.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxucGxvdChjYXJzKVxuYGBgIn0= -->
@@ -201,12 +201,46 @@ $(document).ready(function () {
 <!-- rnb-plot-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Add a new chunk by clicking the <em>Insert Chunk</em> button on the toolbar or by pressing <em>Ctrl+Alt+I</em>.</p>
-<p>When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the <em>Preview</em> button or press <em>Ctrl+Shift+K</em> to preview the HTML file).</p>
+<p>On with this week’s notes.</p>
+</div>
+<div id="course-info" class="section level1">
+<h1>Course Info</h1>
+<p>3 quizzes,(closed without registration, which costs $$$), 1 course project.</p>
+<p>There are 9 companion textbooks available that track with the entire JHU DS specialization. They’re available at <a href="www.leanpub.com">Leanpub</a>.</p>
+<div id="specialization-motivation" class="section level2">
+<h2>Specialization Motivation</h2>
+<p>Why do this? Because data is awesome and you can do some cool ass shit with it.</p>
+<p>The point is to answer questions. Specifically, <em>your</em> question. Data is freaking everywhere now (seriously, it’s insane how fast we’re generating it…). This has never happened before in human history, so it’s a pretty exciting time. New fields of study are being discovered and data is allowing us to learn entirely new things about the world.</p>
+<p>This class will be focused almost entirely on statistical data analysis (what other kind is there?) and R.</p>
+<p>The course would have me install R and RStudio natively, but fuck that noise, this shit is dockerized! See the <code>0. Docker</code> directory for info on the setup.</p>
+</div>
+<div id="data-science-venn-diagram" class="section level2">
+<h2>Data Science Venn Diagram</h2>
+<p>I refuse to put that fucking diagram in this document.</p>
+</div>
+<div id="what-do-data-scientists-do" class="section level2">
+<h2>What do data scientists do?</h2>
+<p>These are the general steps in data science:</p>
+<ol style="list-style-type: decimal">
+<li>define the question</li>
+<li>define the ideal dataset</li>
+<li>determine what data you can actually access</li>
+<li>obtain the data</li>
+<li>clean the data</li>
+<li>exploratory data analysis</li>
+<li>statistical prediction/modeling</li>
+<li>interpret results</li>
+<li>challenge results</li>
+<li>synthesize results</li>
+<li>create reproducible code</li>
+<li>distribute results</li>
+</ol>
+<p>That makes this whole thing seem pretty linear and straightforward. It is not.</p>
 <!-- rnb-text-end -->
 </div>
+</div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiMS4gRFMgVG9vbGJveDogV2VlayAxIE5vdGVzIgpvdXRwdXQ6IGh0bWxfbm90ZWJvb2sKLS0tCgojIFN5bGxhYnVzClRoZXJlIGFyZSAyIG1haW4gY29tcG9uZW50cyB0byB0aGlzIGZpcnN0IGNvdXJzZToKCjEuIGEgY29uY2VwdHVhbCBpbnRybyB0byBkYXRhCjIuIGEgcHJhY3RpY2FsIGludHJvIHRvIGdpdC8ubWQvUgoKVGhpcyBjbGFzcyBpcyBtb3N0bHkgcG9pbnRsZXNzIGFzIEkgYWxyZWFkeSBrbm93IG1vc3Qgb2YgdGhpcy4gU28gaXRzIHByaW1hcnkgdXNlIHdpbGwgYmUgdG8gbGVhcm4gaG93IC5SbWQgbm90ZWJvb2tzIGJlaGF2ZSB1bmRlciB2ZXJzaW9uIGNvbnRyb2wuIEJlbG93LCBJIGhhdmUgMiBjb2RlIGNodW5rcy4gVGhlIGZpcnN0IGhhcyBub3QgYmVlbiBydW47IGl0IGp1c3Qgc2F5cyBgcGxvdChjYXJzKWAgYW5kIHRoaXMgZmlsZSB3YXMgc2F2ZWQgd2l0aCB0aGF0IHJlc3VsdCBjbGVhcmVkIChzbyBpdCdzIGFsc28gYWJzZW50IGZyb20gdGhlIC5uYi5odG1sIGZpbGUpLiBUaGUgMm5kIGNvZGUgY2h1bmsgaXMgZXhhY3RseSB0aGUgc2FtZSwgZXhjZXB0IHRoYXQgdGhlIHJlc3VsdHMgaGF2ZSBiZWVuIGV4ZWN1dGVkLCB0aGUgcGxvdCBhcHBlYXJzIGJlbG93IHRoZSBjb2RlIGNodW5rLCBhbmQgdGhlIHBsb3QgaXMgcHJlc2VudCBpbiB0aGUgLm5iLmh0bWwgZmlsZS4KCgoKClRoaXMgaXMgYW4gW1IgTWFya2Rvd25dKGh0dHA6Ly9ybWFya2Rvd24ucnN0dWRpby5jb20pIE5vdGVib29rLiBXaGVuIHlvdSBleGVjdXRlIGNvZGUgd2l0aGluIHRoZSBub3RlYm9vaywgdGhlIHJlc3VsdHMgYXBwZWFyIGJlbmVhdGggdGhlIGNvZGUuIAoKVHJ5IGV4ZWN1dGluZyB0aGlzIGNodW5rIGJ5IGNsaWNraW5nIHRoZSAqUnVuKiBidXR0b24gd2l0aGluIHRoZSBjaHVuayBvciBieSBwbGFjaW5nIHlvdXIgY3Vyc29yIGluc2lkZSBpdCBhbmQgcHJlc3NpbmcgKkN0cmwrU2hpZnQrRW50ZXIqLgoKYGBge3J9CnBsb3QoY2FycykKYGBgCgoKYGBge3J9CnBsb3QoY2FycykKYGBgCgpBZGQgYSBuZXcgY2h1bmsgYnkgY2xpY2tpbmcgdGhlICpJbnNlcnQgQ2h1bmsqIGJ1dHRvbiBvbiB0aGUgdG9vbGJhciBvciBieSBwcmVzc2luZyAqQ3RybCtBbHQrSSouCgpXaGVuIHlvdSBzYXZlIHRoZSBub3RlYm9vaywgYW4gSFRNTCBmaWxlIGNvbnRhaW5pbmcgdGhlIGNvZGUgYW5kIG91dHB1dCB3aWxsIGJlIHNhdmVkIGFsb25nc2lkZSBpdCAoY2xpY2sgdGhlICpQcmV2aWV3KiBidXR0b24gb3IgcHJlc3MgKkN0cmwrU2hpZnQrSyogdG8gcHJldmlldyB0aGUgSFRNTCBmaWxlKS4K</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiMS4gRFMgVG9vbGJveDogV2VlayAxIE5vdGVzIgpvdXRwdXQ6IGh0bWxfbm90ZWJvb2sKLS0tCgojIFN5bGxhYnVzClRoZXJlIGFyZSAyIG1haW4gY29tcG9uZW50cyB0byB0aGlzIGZpcnN0IGNvdXJzZToKCjEuIGEgY29uY2VwdHVhbCBpbnRybyB0byBkYXRhCjIuIGEgcHJhY3RpY2FsIGludHJvIHRvIGdpdC8ubWQvUgoKVGhpcyBjbGFzcyBpcyBtb3N0bHkgcG9pbnRsZXNzIGFzIEkgYWxyZWFkeSBrbm93IG1vc3Qgb2YgdGhpcy4gU28gaXRzIHByaW1hcnkgdXNlIHdpbGwgYmUgdG8gbGVhcm4gaG93IC5SbWQgbm90ZWJvb2tzIGJlaGF2ZSB1bmRlciB2ZXJzaW9uIGNvbnRyb2wuIFJTdHVkaW8gcmVjb21tZW5kcyBjaGVja2luZyBpbiBib3RoIHRoZSAuUm1kIGFuZCAubmIuaHRtbCBmaWxlcywgdGhlIHNvdXJjZSBhbmQgb3V0cHV0IGZpbGVzLCByZXNwZWN0aXZlbHkuCgpCZWxvdywgSSBoYXZlIDIgY29kZSBjaHVua3MuIFRoZSBmaXJzdCBoYXMgbm90IGJlZW4gcnVuOyBpdCBqdXN0IHNheXMgYHBsb3QoY2FycylgIGFuZCB0aGlzIGZpbGUgd2FzIHNhdmVkIHdpdGggdGhhdCByZXN1bHQgY2xlYXJlZCAoc28gaXQncyBhbHNvIGFic2VudCBmcm9tIHRoZSAubmIuaHRtbCBmaWxlKS4gVGhlIDJuZCBjb2RlIGNodW5rIGlzIGV4YWN0bHkgdGhlIHNhbWUsIGV4Y2VwdCB0aGF0IHRoZSByZXN1bHRzIGhhdmUgYmVlbiBleGVjdXRlZCwgdGhlIHBsb3QgYXBwZWFycyBiZWxvdyB0aGUgY29kZSBjaHVuaywgYW5kIHRoZSBwbG90IGlzIHByZXNlbnQgaW4gdGhlIC5uYi5odG1sIGZpbGUuCgpBcyB5b3UgY2FuIHNlZSB3aGVuIHlvdSB2aWV3IHRoZSByYXcgLlJtZCBmaWxlLCB0aGVzZSAyIGNvZGUgY2h1bmtzIGFyZSBpZGVudGljYWwgYW5kIG5vIHJlc3VsdHMgYXJlIGluY2x1ZGVkIGluIGVpdGhlciBjaHVuay4gU28gdGhlIFIgY29kZSBpcyBhbGwgdGhhdCBpcyBwcmVzZXJ2ZWQgaW4gdGhlIC5SbWQgZmlsZSwgYW5kIGl0IGlzIGV4ZWN1dGVkIGFuZCByZW5kZXJlZCBpbiB0aGUgLm5iLmh0bWwgZmlsZSB1cG9uIHNhdmluZy9wcmV2aWV3aW5nIHRoZSAuUm1kIGZpbGUgaW4gYW4gUiBzZXNzaW9uLiBLZXdsLgoKYGBge3J9CnBsb3QoY2FycykKYGBgCgoKYGBge3J9CnBsb3QoY2FycykKYGBgCgpPbiB3aXRoIHRoaXMgd2VlaydzIG5vdGVzLgoKIyBDb3Vyc2UgSW5mbwozIHF1aXp6ZXMsKGNsb3NlZCB3aXRob3V0IHJlZ2lzdHJhdGlvbiwgd2hpY2ggY29zdHMgXCRcJCQpLCAxIGNvdXJzZSBwcm9qZWN0LgoKVGhlcmUgYXJlIDkgY29tcGFuaW9uIHRleHRib29rcyBhdmFpbGFibGUgdGhhdCB0cmFjayB3aXRoIHRoZSBlbnRpcmUgSkhVIERTIHNwZWNpYWxpemF0aW9uLiBUaGV5J3JlIGF2YWlsYWJsZSBhdCBbTGVhbnB1Yl0od3d3LmxlYW5wdWIuY29tKS4KCiMjIFNwZWNpYWxpemF0aW9uIE1vdGl2YXRpb24KV2h5IGRvIHRoaXM/IEJlY2F1c2UgZGF0YSBpcyBhd2Vzb21lIGFuZCB5b3UgY2FuIGRvIHNvbWUgY29vbCBhc3Mgc2hpdCB3aXRoIGl0LgoKVGhlIHBvaW50IGlzIHRvIGFuc3dlciBxdWVzdGlvbnMuIFNwZWNpZmljYWxseSwgKnlvdXIqIHF1ZXN0aW9uLiBEYXRhIGlzIGZyZWFraW5nIGV2ZXJ5d2hlcmUgbm93IChzZXJpb3VzbHksIGl0J3MgaW5zYW5lIGhvdyBmYXN0IHdlJ3JlIGdlbmVyYXRpbmcgaXQuLi4pLiBUaGlzIGhhcyBuZXZlciBoYXBwZW5lZCBiZWZvcmUgaW4gaHVtYW4gaGlzdG9yeSwgc28gaXQncyBhIHByZXR0eSBleGNpdGluZyB0aW1lLiBOZXcgZmllbGRzIG9mIHN0dWR5IGFyZSBiZWluZyBkaXNjb3ZlcmVkIGFuZCBkYXRhIGlzIGFsbG93aW5nIHVzIHRvIGxlYXJuIGVudGlyZWx5IG5ldyB0aGluZ3MgYWJvdXQgdGhlIHdvcmxkLgoKVGhpcyBjbGFzcyB3aWxsIGJlIGZvY3VzZWQgYWxtb3N0IGVudGlyZWx5IG9uIHN0YXRpc3RpY2FsIGRhdGEgYW5hbHlzaXMgKHdoYXQgb3RoZXIga2luZCBpcyB0aGVyZT8pIGFuZCBSLgoKVGhlIGNvdXJzZSB3b3VsZCBoYXZlIG1lIGluc3RhbGwgUiBhbmQgUlN0dWRpbyBuYXRpdmVseSwgYnV0IGZ1Y2sgdGhhdCBub2lzZSwgdGhpcyBzaGl0IGlzIGRvY2tlcml6ZWQhIFNlZSB0aGUgYDAuIERvY2tlcmAgZGlyZWN0b3J5IGZvciBpbmZvIG9uIHRoZSBzZXR1cC4KCiMjIERhdGEgU2NpZW5jZSBWZW5uIERpYWdyYW0KSSByZWZ1c2UgdG8gcHV0IHRoYXQgZnVja2luZyBkaWFncmFtIGluIHRoaXMgZG9jdW1lbnQuCgojIyBXaGF0IGRvIGRhdGEgc2NpZW50aXN0cyBkbz8KVGhlc2UgYXJlIHRoZSBnZW5lcmFsIHN0ZXBzIGluIGRhdGEgc2NpZW5jZToKCjEuIGRlZmluZSB0aGUgcXVlc3Rpb24KMi4gZGVmaW5lIHRoZSBpZGVhbCBkYXRhc2V0CjMuIGRldGVybWluZSB3aGF0IGRhdGEgeW91IGNhbiBhY3R1YWxseSBhY2Nlc3MKNC4gb2J0YWluIHRoZSBkYXRhCjUuIGNsZWFuIHRoZSBkYXRhCjYuIGV4cGxvcmF0b3J5IGRhdGEgYW5hbHlzaXMKNy4gc3RhdGlzdGljYWwgcHJlZGljdGlvbi9tb2RlbGluZwo4LiBpbnRlcnByZXQgcmVzdWx0cwo5LiBjaGFsbGVuZ2UgcmVzdWx0cwoxMC4gc3ludGhlc2l6ZSByZXN1bHRzCjExLiBjcmVhdGUgcmVwcm9kdWNpYmxlIGNvZGUKMTIuIGRpc3RyaWJ1dGUgcmVzdWx0cwoKVGhhdCBtYWtlcyB0aGlzIHdob2xlIHRoaW5nIHNlZW0gcHJldHR5IGxpbmVhciBhbmQgc3RyYWlnaHRmb3J3YXJkLiBJdCBpcyBub3QuCgo=</div>
 
 
 

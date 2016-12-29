@@ -9,14 +9,11 @@ There are 2 main components to this first course:
 1. a conceptual intro to data
 2. a practical intro to git/.md/R
 
-This class is mostly pointless as I already know most of this. So its primary use will be to learn how .Rmd notebooks behave under version control. Below, I have 2 code chunks. The first has not been run; it just says `plot(cars)` and this file was saved with that result cleared (so it's also absent from the .nb.html file). The 2nd code chunk is exactly the same, except that the results have been executed, the plot appears below the code chunk, and the plot is present in the .nb.html file.
+This class is mostly pointless as I already know most of this. So its primary use will be to learn how .Rmd notebooks behave under version control. RStudio recommends checking in both the .Rmd and .nb.html files, the source and output files, respectively.
 
+Below, I have 2 code chunks. The first has not been run; it just says `plot(cars)` and this file was saved with that result cleared (so it's also absent from the .nb.html file). The 2nd code chunk is exactly the same, except that the results have been executed, the plot appears below the code chunk, and the plot is present in the .nb.html file.
 
-
-
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+As you can see when you view the raw .Rmd file, these 2 code chunks are identical and no results are included in either chunk. So the R code is all that is preserved in the .Rmd file, and it is executed and rendered in the .nb.html file upon saving/previewing the .Rmd file in an R session. Kewl.
 
 ```{r}
 plot(cars)
@@ -27,6 +24,40 @@ plot(cars)
 plot(cars)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+On with this week's notes.
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+# Course Info
+3 quizzes,(closed without registration, which costs \$\$$), 1 course project.
+
+There are 9 companion textbooks available that track with the entire JHU DS specialization. They're available at [Leanpub](www.leanpub.com).
+
+## Specialization Motivation
+Why do this? Because data is awesome and you can do some cool ass shit with it.
+
+The point is to answer questions. Specifically, *your* question. Data is freaking everywhere now (seriously, it's insane how fast we're generating it...). This has never happened before in human history, so it's a pretty exciting time. New fields of study are being discovered and data is allowing us to learn entirely new things about the world.
+
+This class will be focused almost entirely on statistical data analysis (what other kind is there?) and R.
+
+The course would have me install R and RStudio natively, but fuck that noise, this shit is dockerized! See the `0. Docker` directory for info on the setup.
+
+## Data Science Venn Diagram
+I refuse to put that fucking diagram in this document.
+
+## What do data scientists do?
+These are the general steps in data science:
+
+1. define the question
+2. define the ideal dataset
+3. determine what data you can actually access
+4. obtain the data
+5. clean the data
+6. exploratory data analysis
+7. statistical prediction/modeling
+8. interpret results
+9. challenge results
+10. synthesize results
+11. create reproducible code
+12. distribute results
+
+That makes this whole thing seem pretty linear and straightforward. It is not.
+
