@@ -1,0 +1,87 @@
+---
+title: "1. DS Toolbox: Week 3 Notes"
+output: html_notebook
+---
+
+# Data Science Analysis
+This week is all about data science and the conceptual pieces, as opposed to the practical content from last week.
+
+## Types of data science questions
+### Descriptive analysis
+* first kind of analysis performed
+* think census data
+* description and interpretation are different steps
+* descriptions can't be generalized without additional work; they only describe **this** data
+
+### Exploratory analysis
+**Goal:** find relationships you didn't know about
+
+* good for discovering new connections
+* good for defining future studies
+* not the final say
+* can't be useds for generalizing/predicting
+* correlation does not imply causation
+
+### Inferential analysis
+**Goal:** use a small dataset to say something true about a larger population
+
+* this is how you generalize small findings to larger groups
+* inference requires estimating both the main metric **and the uncertainty about that metric**
+* depends heavily on both the population and the sampling scheme
+
+### Predictive analysis
+**Goal:** use data from some observations to predict outcomes for new observations
+
+* if $X$ predicts $Y$, $X$ does not necessarily *cause* $Y$
+* depends on measuring the right variables
+* models can be important, but in general **more data** and **simple models** can work wonders
+* only works if the function you're estimating actually holds true; assumptions matter!
+
+### Causal analysis
+**Goal:** to find out how one variable responds to changes in another variable
+
+* usually requires randomized studies to identify causation
+* inferring causation from non-randomized studies is a thing, and there are some methods for doing it, but it is highly complicated and sensitive to assumptions
+* usually identified as average effects, does not necessarily apply to every individual (as might mechanical analysis)
+* sort of the "gold standard" of data analysis
+
+### Mechanical analysis
+**Goal:** understand the exact changes in variables that lead to changes in other variables for individual objects/observations
+
+* incredibly hard to infer, except in the simplest situations
+* usually modelled by a deterministic set of equations
+* this is basically just physics and engineering
+* random component is usually measurement error (again, because the system is likely entirely deterministic)
+* if the equations are known but the parameters are not, they can be inferred with data analysis (yay optimization problems!)
+
+## What is data?
+Data are (grrr) values of qualitative or quantitative variables belonging to a set of items
+
+Data can look like a bunch of different things. Tabular, columnar, json, text, etc. Data will not be pretty when you get it. It's actually almost certain to be a nightmare.
+
+More important than data is the question. You ***MUST*** have a good question for data science to work well at all.
+
+## What about big data?
+STFU. Your data is not that big. Big data basically just means data larger than current memory hardware. Distributed analysis is a thing, and it's cool, but that's next level shit.
+
+## Experimental design
+Most important piece: formulate your question in advance! You have to have a clear question so you can judge how well you've answered it. An important note here is that your initial goal should be to *do something*, but rather to answer a question. Don't set out with the goal that we want to increase effectiveness of this program or that process. Start with the question: does this variable affect outcomes?
+
+### The role of statistical inference
+You likely can't test your hypothesis on every single case that you're interested in, so you must sample and then use inferential statistics to determine the variable's effect in the general population.
+
+### Confounding
+Understanding the relationships between multiple variables is important. You might find that shoe size is correlated with literacy; small shoe size means low literacy. But this is probably mostly explained by age, which is naturally confounded with both shoe size and literacy.
+
+You can deal with confounding by fixing or randomizing certain variables.
+
+### Prediction
+Prediction requires little overlap between distributions; that is, the groups you're predicting are ideally pretty distinct from one another.
+
+Key quantities in prediction are:
+
+* sensitivity, or true positive rate: $Pr(+ test | + disease)$
+* specificity, or true negative rate: $Pr(- test | - disease)$
+* positive predictive value: $Pr(+ disease | + test)$
+* negative predictive value: $Pr(- disease | - test)$
+* accuracy: $Pr(correct prediction)$
