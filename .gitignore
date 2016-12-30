@@ -3,5 +3,7 @@
 .RData
 .Ruserdata
 
-.html
-!.nb.html
+*.R
+
+*.html
+!*.nb.html
