@@ -1,0 +1,292 @@
+---
+title: '2. R Programming: Week 1 Notes'
+output:
+  html_notebook: default
+  html_document: default
+---
+
+# R Programming - Objects & Basics
+
+## R Objects
+R has 5 basic, atomic classes of objects:
+
+* character
+* numeric
+* integer
+* complex
+* logical
+
+The most basic object is a vector. A vector can only contain 1 class. For multi-class, you use a list, which is represented like a vector, but can hold multiple classes as elements.
+
+### Numbers
+Numbers are pretty much always numeric class. (But you can force integer numbers with the `L` suffix, e.g. `1L`.)
+
+`Inf` is a special number representing infinity, and `NaN` represents undefined (not a number).
+
+### Vectors and lists
+`c()` concatenates stuff into vectors. `:` is a shortcut for sequences. `vector()` makes empty vectors.
+
+Examples:
+
+```{r}
+x <- c(.5, .5); x
+x <- c(TRUE, FALSE); x
+x <- c(T, F); x
+x <- c("a", "b", "c"); x
+x <- c(1+0i, 2+4i); x
+x <- 9:17; x
+x <- vector("numeric", length = 10); x
+```
+
+If you mix classes, R will coerce a vector into the 'least common denominator' class, a class that can represent all elements. Examples:
+
+```{r}
+x <- c(1.7, "a"); class(x)
+x <- c(TRUE, 2); class(x)
+x <- c("a", TRUE); class(x)
+```
+
+You can force changes with `as.numeric()`, `as.logical()`, `as.character()`. Non-sensible coercion will result in `NA` values.
+
+Lists are special types of vectors that can hold elements of different classes. Lists can also hold vectors, so the first element of a list can be a vector with length > 1.
+
+```{r}
+x <- list(1, "a", TRUE, 1+4i)
+lapply(x, class)
+```
+
+### Matrices
+Matrices are like vectors, but they have a dimension attribute. The dimension attribute, itself, is just an integer vector of length 2, `(nrows, ncols)`.
+
+`matrix(f, r, c)` makes a matrix with `f` in each element--filled from the top left, then down, then right--and `r` rows by `c` columns.
+
+You can also turn a vector into a matrix by passing the dimensions to the `dim` attribute of the vector.
+
+Finally, you can `cbind()` and `rbind()` together multiple vectors (of the same length). This just tacks them together as columns/rows.
+
+Examples:
+```{r}
+m <- matrix(1:12, 4, 3); m
+
+m <- 1:21
+dim(m) <- c(3, 7); m
+
+x <- 1:6
+y <- 10:16
+cbind(x, y)
+rbind(x, y)
+```
+
+### Factors
+Factors represent categorical data. It's basically an integer vector where each integer corresponds to a label (like male/female). They can be ordinal or just categorical. Factors are treated specially by modeling functions like `lm()` or `glm()`.
+
+Factors are created with the `factor()` function, input is a character vector. The factor contains a level for each category of data; those levels are actually stored in R as integers. Levels are applied alphabetically, so in the below example, `no` is assigned 1 and `yes` is assigned to 2.
+
+```{r}
+x <- factor(c("yes", "no", "no", "yes", "no", "yes")); x
+```
+
+You can force the order of levels like so:
+```{r}
+x <- factor(c("yes", "no", "no", "yes", "no", "yes"), levels = c("yes", "no")); x
+```
+
+### Missing values
+Missing values are either `NA` or `NaN`. `NA` is any missing value, `NaN` is for undefined mathematical operations. `NA`'s can have a class, so there can be integer/character/numeric variations. `NaN` values are technically also `NA`, but the converse is not true.
+
+### Data frames
+Data frames are a special type of list where every element of the list must be of the same length; they're used to represent tabular data. Each element of the list can have a different class, unlike matrices.
+
+Data frames have a special attribute called `row.names` which identifies each row. They can be created by calling `read.table()` or `read.csv()`, and they can be converted to a matrix with `data.matrix()`. This conversion will force a least common denominator approach regarding object class.
+
+### The names attribute
+R objects can have names, assigned via the `names()` function. Names can also be applied directly in the creation of an object.
+
+```{r}
+x <- 1:3
+names(x) <- c("foo", "bar", "norf"); x
+x <- list(a = 1, b = "g", c = TRUE); x
+```
+
+Matrices can have names as well, but these are known as `dimnames`. 
+
+```{r}
+m <- matrix(1:9, 3, 3); m
+dimnames(m) <- list(c("w1", "w2", "w3"), c("h1", "h2", "h3")); m
+```
+
+## Reading tabular data
+
+* `read.table()` and `read.csv()` read in tabular data and return a data frame (inverse of `write.table()`)
+* `read.lines()` reads lines of a text file and returns a character vector (inverse of `write.lines()`)
+* `source()` reads in R code (inverse of `dump()`)
+* `dget()` reads in R code for R objects that have been deparsed into text files (inverse of `dput()`)
+* `load()` reads in saved workspaces (inverse of `save()`)
+* `unserialize()` reads in single R objects in binary form (inverse of `serialize()`)
+
+### `read.table`
+This is the most common method of reading data into R. Here are some important arguments:
+
+* `file` is the name of the file or connection
+* `header` is a logical indicating if the file has a header line
+* `sep` is a string indicating how the columns are separated
+* `colClasses` is a character vector indicating the class of each column
+* `nrows` is the number of rows to read in
+* `comment.char` is a character string indicating the comment character
+* `skip` is the number of lines from the beginning to skip
+* `stringsAsFactors` is a logical indicating that character variables should be coded as factors
+
+For small/moderate datasets, you probably don't need any arguments (assuming the data is pretty clean). R automatically skips `#` lines as comments, calculates the number of rows and memory allocation, and determines the column classes (although explicitly declaring these is a good idea, speeds up the process).
+
+### Reading larger datasets
+Definitely refer to the `read.table` help page, it provides lots of good info about optimizing the function.
+
+You should make a rough calculation of the memory requirement to make sure your machine can pull it off. For each column do $length \times bytes \space for \space data \space type$. Then divide those bytes by $2^{20} bytes/MB$ resulting in total size in MB. Add up all columns and that's the memory requirement. You'll need about twice that for things to go smoothly.
+
+If there are no comments, then set `comment.char = ""`, speeds things up.
+
+`colClasses` is super important. R tries to manually determine the class of each column, but that can be expensive. Good MO is to read in 100 rows, let R determine column classes, then pipe that character vector into the reading of the whole dataset.
+
+```{r, eval=FALSE}
+tenrows <- read.table(".txt", nrows = 10)
+classes <- sapply(tenrows, class)
+data <- read.table(".txt", colClasses = classes)
+```
+
+## Textual data formats
+These are the formats for storing data that include certain metadata about the R objects they describe. They are text files, which adheres to the Unix philosophy, they work well with git, and are edit-able and potentially recoverable. However, they're not particularly space-efficient.
+
+`dput()` allows you to deparse an R object and then read it back in via `dget()`. This process essentially writes R code that will reconstruct the R object.
+
+```{r}
+y <- data.frame(a=1, b="a")
+dput(y)
+dput(y, file="y.R")
+new.y <- dget("y.R"); new.y
+```
+
+`dump()` is like `dput()`, but it can handle deparsing multiple R objects, which can then be read back in with `source()`.
+
+```{r}
+x <- "foo"
+y <- data.frame(a=1, b="a")
+dump(c("x", "y"), file = "stuff.R")
+rm(x, y)
+source("stuff.R")
+x
+y
+```
+
+## Connections
+How R interfaces with the outside world.
+
+* `file()` opens a connection to a file
+     * `str(file)` shows the structure. `description` is the name of the file, `open` is a code (`r` for read only, `w` for write and initialize a new file, `a` for appending, and `rb`, `wb`, `ab` for binary mode (Windows))
+* `gzfile()` opens a connection to a gzip compressed file
+* `bzfile()` opens a connection to a bzip2 compressed file
+* `url()` opens a connection to a webpage
+
+In general, you don't have to deal with connections much, but FYI, you use connections according to this process:
+
+```{r, eval=FALSE}
+conn <- gzfile("file.gz")
+x <- readLines(conn, 10)
+close(conn)
+```
+
+## Subsetting
+
+* `[]` always returns an object of the same class as the original object; it can also be used to extract more than one element of an object (with 1 exception)
+* `[[]]` is used to extract elements of lists/data frames; it can only extract a single element, but that element can be of a different class than the original object
+* `$` is used to extract elements of a list/data frame by name
+
+#### Basic [] indexing
+
+```{r}
+x <- c("a", "b", "c", "c", "d", "a")
+x[1]
+x[2]
+x[1:4]
+```
+
+#### Logical indexing
+
+```{r}
+x[x > "a"]
+u <- x > "a"
+u
+x[u]
+```
+
+#### Subsetting lists
+
+```{r}
+x <- list(foo = 1:4, bar = 0.6)
+x[1]           # returns a list with 1 element named foo containing 1:4
+x[[1]]         # returns a vector with the sequence 1:4
+x$bar          # returns the element named bar
+x[["bar"]]     # same as x$bar
+x["bar"]       # returns a list (forced to, by []), with the element 'bar' in it
+```
+
+Using `[]` to index multiple elements
+
+```{r}
+x <- list(foo = 1:4, bar = 0.6, baz = "hello")
+x[c(1, 3)]     # returns a list with the elements foo and baz
+```
+
+Using `[[]]` to index with computed names
+
+```{r}
+name <- "foo"  # you can store an index in a variable
+x[[name]]      # returns the sequence 1:4, processes name = foo
+x$name         # returns NULL, does NOT evaluate name = foo
+x$foo          # returns 1:4, as expected
+```
+
+Using `[[]]` to recursively index into lists
+
+```{r}
+x <- list(a = list(10, 12, 14), b = c(3.14, 2.81))
+x[[c(1, 3)]]   # indexes the 3rd element of the 1st element, 14 in this case
+x[[1]][[3]]    # same as above, 3rd element of 1st element, 14
+x[[c(2, 1)]]   # returns 3.14, 1st element of 2nd element
+```
+
+#### Subsetting matrices
+Basically works as you'd expect: rows then columns, just like the $i, j$ notation.
+
+```{r}
+x <- matrix(1:6, 2, 3)
+x[1, 2]        # 1st row, 2nd col
+x[2, 1]        # 2nd row, 1st col
+x[1, ]         # entire 1st row
+x[, 2]         # entire 2nd col
+```
+
+Note: despite the rules of the `[]` operator, when retrieving a single element of a matrix, or a single row or column, you *DO NOT* get a matrix back; a single element is returned as a vector of length 1, rather than a 1x1 matrix. You can call `x[1, 2, drop = FALSE]` to force a 1x1 matrix. Similarly, rows and columns are returned as vectors.
+
+#### Partial matching
+Partial matching of names works with the `[[]]` and `$` operators.
+
+```{r}
+x <- list(aardvark = 1:5)
+x$a            # returns aardvark
+x[["a"]]       # returns null unless you specify exact = FALSE
+```
+
+#### Removing NA values
+
+```{r}
+x <- c(1, 2, NA, 4, NA, 5)
+bad <- is.na(x); bad
+x[!bad]
+```
+
+The `complete.cases()` function generates a logical vector where the elements of all inputs are present. This also works on data frames, returning rows with complete data.
+
+## Vectorized operations
+Instead of looping, use vectorization! `x + y` will add those 2 vectors element-wise. This is true for most arithmetic operations in R.
+
+For matrices, note that the arithmetic operations are still element-wise, and not matrix operations. True matrix multiplication requires the `%*%` operator.
