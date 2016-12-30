@@ -1,0 +1,310 @@
+---
+title: "2. R Programming: Week 2 Notes"
+output: html_notebook
+---
+
+# Programming with R
+
+## Control structures
+The tools to control the flow of a program in R, just like every other language.
+
+* `if`, `else`: tests a condition
+* `for`: executes a fixed number of times
+* `while`: executes while a condition is met
+* `repeat`: executes an infinite loop
+* `break`: exits a loop
+* `next`: skips an iteration of a loop
+* `return`: exits a function
+
+### if-else
+Test a condition and perform an action.
+
+```{r, eval=FALSE}
+if(<condition>) {
+     ## do something
+} else if(<condition>) {
+     ## do something else
+} else {
+     ## do a catch-all thing
+}
+```
+
+Concrete example:
+
+```{r}
+x <- 5
+if (x > 3) {
+     y <- 10
+} else {
+     y <- 0
+}
+
+## a different formulation
+y <- if(x > 3) {
+     10
+} else {
+     0
+}
+```
+
+### for loop
+Executes a loop for a set number of iterations.
+
+```{r}
+for(i in 1:10) {
+     print(i)
+}
+```
+
+The following loops all evaluate to the same result, but they function differently. These first two examples capture the *index* of a vector and use that index inside the loop's execution (this is the standard method you've always known).
+
+```{r}
+x <- c("a", "b", "c", "d")
+
+for (i in 1:4) {
+     print(x[i])
+}
+
+for (i in seq_along(x)) {
+     print(x[i])
+}
+```
+
+The next example captures the *value at the index of x* as opposed to the *index of x* and uses it within the loop.
+
+```{r}
+for (letter in x) {
+     print(letter)
+}
+```
+
+If you only have 1 line of code to execute, you can also formulate your loop like this:
+
+`for (i in 1:4) print(x[i])`
+
+You can also nest for loops, as in matrix operations (looping over the rows and columns). It's best not to nest too many times; it gets really messy, really fast.
+
+```{r}
+x <- matrix(1:6, 2, 3)
+
+for (i in seq_along(nrow(x))) {
+     for (j in seq_along(ncol(x))) {
+          print(x[i, j])
+     }
+}
+```
+
+### while loop
+In general, you execute a loop while a given logical expression holds. The logical expression should naturally switch at some point, but you should have a kill switch to be sure.
+
+```{r}
+count <- 0
+
+while (count < 10) {
+     print(count)
+     count <- count + 1
+}
+```
+
+Another example, a random walk:
+
+```{r}
+z <- 5
+while (z >= 3 && z <= 7) {
+     print(z)
+     coin <- rbinom(1, 1, 0.5)
+     
+     if (coin == 1) {
+          z <- z + 1
+     } else {
+          z <- z - 1
+     }
+}
+```
+
+### repeat, next, break
+`repeat` starts an infinite loop, only escapable via `break`. Not often used in statistical computing.
+
+```{r, eval=FALSE}
+x0 <- 1
+tol <- 1e-8
+
+repeat {
+     x1 <- ## compute estimate
+          
+     if (abs(x1 - x0) < tol) {
+          break
+     } else {
+          x0 <- x1
+     }
+}
+```
+
+The above example is a common formulation for an optimization problem: estimate, check for convergence. But this is kinda dangerous as `repeat` can potentially run forever with no safeguards and no warning that shit's busted.
+
+`next` allows you to skip iterations.
+
+```{r}
+x <- 0
+for (i in 1:100) {
+     if (i <= 97) {
+          next
+     }
+     print(i)
+}
+```
+
+`return` signals that a function should exit and return a given value
+
+## Writing R functions
+Here's a stupid function:
+```{r}
+add2 <- function(x, y) {
+     x + y
+}
+```
+
+And that's it!
+
+Moar stupid functions:
+```{r}
+above10 <- function(x) {
+     use <- x > 10
+     x[use]
+}
+
+aboveN <- function(x, n = 10) {
+     use <- x > n
+     x[use]
+}
+```
+
+We just added a default argument (`n = 10`).
+
+This function calculates the mean of each column of a matrix or data frame.
+
+```{r}
+myColMeans <- function(x, removeNA = TRUE) {
+     nc <- ncol(x)
+     means <- numeric(nc)
+     for (i in 1:nc) {
+          means[i] <- mean(x[, i], na.rm = removeNA)
+     }
+     means
+}
+```
+
+### functions: part 1
+Functions are created with the `function()` function, and they're stored as objects in R just like vectors or anything else. THey have a specific class (function).
+
+```{r, eval=FALSE}
+fname <- function(<arguments>) {
+     ## body of function
+}
+```
+
+Functions can be passed to other functions, or even defined inside of another function. The return value of a function is the last expression to be evaluated.
+
+Functions have 'names arguments' which can have default values.
+
+* the *formal arguments* are those included in the function's definition
+* the `formals()` function returns a list of the formal arguments of a function
+* not every function call uses all of the formal arguments; they can be missing or have default values
+
+#### argument matching
+R functions' arguments can be matched positionally or by name, so the following calls to `sd()` are all equivalent:
+
+```{r, eval=FALSE}
+mydata <- rnorm(100)
+sd(mydata)
+sd(x = mydata)
+sd(x = mydata, na.rm = FALSE)
+sd(na.rm = FALSE, x = mydata)
+sd(na.rm = FALSE, mydata)
+```
+
+In general, fucking with the order of arguments is a bad call, and naming them explicitly might be the way to go.
+
+Basically, a function call first looks at the named arguments. Any argument which is specified by name is effectively removed from the argument search list, and the rest are determined by position. Arguments can also be partially matched, so long as the match is unique.
+
+The order of operations for argument matching:
+
+1. exact match of a named argument
+2. partial matches
+3. positional matches
+
+### functions: part 2
+R uses 'lazy evaluation,' meaning that arguments are only evaluated as they are needed. If you specify an argument in a function call, but the body finishes execution wtihout ever needing that argument, then R never evaluates it at all. Additionally, R will evaluate what it can, and if an error needs to be thrown, it will throw it only when it encounters the offending code. So you might get half the results of a function, then an error if the 2nd half poses a problem.
+
+#### the `...` argument
+This special argument represents a variable number of arguments that are usually passed to another function.
+
+The `...` argument can be used to preserve the arguments of a function without having to explicitly name each of them. In the following example, we're extending the `plot()` function by creating our own version, the `myplot()` function. Our version alters some of the default values for `plot()`'s arguments, but we obviously want to retain all of the possible arguments of `plot()` for use in `myplot()`.
+
+```{r}
+myplot <- function(x, y, type = "l", ...) {
+     plot(x, y, type = type, ...)
+}
+```
+
+This formulation means that we can call `myplot(x, y, <5 other plot arguments>)` and those arguments will be correctly passed to `plot()`.
+
+`...` is also used to pass extra arguments to methods, but we don't cover that here.
+
+Finally, `...` is used when you cannot predict the number of arguments that will be needed for a function call, such as the `cat()` function. When concatenating strings together, you have no idea how many strings you'll need to concatenate. So the first argument for `cat()` is `...`, which allows it to take in any number of arguments.
+
+**NOTE:** any arguments appearing after `...` cannot be matched by position or partial names; they must be explicitly named.
+
+## Scoping rules
+R binds values to symbols by searching through a list of environments until it finds the symbol it's looking for. It starts looking in the Global Environment and then searches the namespaces of each of the packages in the search list. You can see the search list by using the `search()` function. The order of the packages on the list matters, and the most recently loaded packages get placed at the top of the list (but behind the Global Environment).
+
+The Global Environment is basically your workspace, including everything you've currently got loaded into it. R uses separate namespaces for functions and other objects, so it's possible for a function and a non-function to share a name.
+
+### lexical scoping
+R uses lexical, or static scoping, as opposed to dynamic scoping.
+
+This means that values are assigned to symbols according to the environment in which a function was *defined*.
+
+In dynamic scoping, values are searched for in the environment in which a function was *called*.
+
+The base package is at the top of this tree, with only the empty environment being higher order), so it is sort of the "oldest parent." When R looks for values to assign to variables that it finds in a function, it looks to the environment in which the function was defined. If this was the Global Environment, it starts there, then digs through the package list until it hits the base, then the empty environment, then throws an error if it never found a value.
+
+However, in R, functions can be definded inside of other functions, so the parent environment for some functions could be the body of another function in some environment. Consider constructor functions like this:
+
+```{r}
+make.power <- function(n) {
+     pow <- function(x) {
+          x^n
+     }
+     pow
+}
+```
+
+When you call `make.power(3)` you are setting `n = 3`. If you assign the result to a variable, say `var`, then `var` is now a function (effectively `pow()`, since `pow` is the return value for `make.power()`) and `var` known `n = 3`. Now, when you call `var(7)`, 7 serves as `x` and the result will be $7^3 = 21$.
+
+#### Why does this matter? an optimization example
+So I clearly don't understand this as well as I need to...
+
+[This](https://www.stat.auckland.ac.nz/~ihaka/downloads/lexical.pdf) article is a good starting point for wrapping my brain around lexical scoping specifically within the context of statistical computing.
+
+Additionally, I should google around for some leads on optimization functions in R.
+
+**THIS IS VITAL!** I need to understand optimization in computing like I understand basic arithmetic.
+
+## Dates and times
+Dates are represented by the `date` class; they are comprised of a year, month, and day of month. They're stored internally as the number of days since Jan. 1, 1970. Dates can be coerced from strings via `as.Date("1970-01-15")`. (That would be stored as the number 14.)
+
+Times are represented by the `POSIXct` or `POSIXlt` class. They're stored internally as the number of seconds since Jan. 1, 1970. `POSIXct` is basically a giant integer and is useful when you want to store times in a data frame. `POSIXlt` is stored as a list, and it's comprised of information such as day of week, day of year, month, day of month.
+
+`strptime()` is a function that uses format guidelines to parse date/time strings into proper date/time objects. Given the following data data, you can convert it to a date/time object:
+
+```{r}
+datestring <- c("January 10, 2012 10:40", "December 9, 2011 9:10")
+
+x <- strptime(datestring, "%B %d, %Y %H:%M")
+x
+```
+
+This allows you to work with date data that may be formatted in some bizarre way (date data is always bizarre. Fucking always). You can check `?strptime` for details on the formatting strings.
+
+Date/time objects do nifty things like keep track of leap years and timezones, so you don't have to.
