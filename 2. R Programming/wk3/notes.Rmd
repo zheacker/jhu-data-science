@@ -1,0 +1,183 @@
+---
+title: "2. R Programming: Week 3 Notes"
+output: html_notebook
+---
+
+# Apply loops & debugging
+
+## Apply loops
+This is the family of apply functions:
+
+* `apply`: apply a function over the margins of an array
+* `lapply`: loops over a list and evaluates a function over each element of the list
+* `sapply`: same as `lapply`, but it simplifies the result
+* `tapply`: apply a function over subsets of a vector
+* `mapply`: multivariate version of `lapply`
+
+NOTE: there's also a nifty function called `split` which is particularly useful in conjunction with `lapply`.
+
+### `apply`
+This function evaluates a function at the margins of an array. This means that you apply a function across a specific dimension of a multidimensional object. A matrix has 2 dimensions. Rows is 1, columns is 2. If you apply `mean()` across dimension 2 of a matrix, then you're taking the means of each column of that matrix. Applying over the 1st dimension takes the mean of the rows. Here's what all that looks like.
+
+```{r}
+mtx <- matrix(rnorm(20, 50, 10), 5, 4); mtx
+apply(mtx, 2, mean)
+apply(mtx, 1, mean)
+```
+
+There are some specialized functions that are highly optimized for common use cases. These are the `rowSums()`, `rowMeans()`, `colSums()`, and `colMeans()` functions. They are significantly faster than `apply`, but you would only notice on massive data.
+
+You can pass more exotic functions (and their arguments) to `apply`. Here's a quantile example on a 20x10 matrix.
+
+```{r}
+x <- matrix(rnorm(50), 10, 5); x
+apply(x, 1, quantile, probs = c(0.25, 0.75))
+```
+
+This function will calculate the 25th and 75th percentile for each row of `x` (20 rows).
+
+You can also use the `apply` function on objects of > 2 dimensions. Imagine a 3 dimensional array that is 2x2x10. You can average over the Z dimension with `apply(array, c(1, 2), mean)`. This results in a 2x2 matrix with averages of the 10 elements in the Z direction.
+
+This can get kinda tricky to think about, so you can always orient yourself (for objects of up to 3 dimensions) with this array:
+
+```{r}
+box <- array(1:24, c(2, 3, 4)); box[, , 1]
+```
+
+Remember that the dimensions you pass to `apply` are those that you *do not* wish to compress. If you pass `c(1, 2)`, it means you want to keep those dimensions and apply the function over the 3rd.
+
+```{r}
+apply(box, c(1, 2), mean)
+```
+
+### `lapply`
+Takes 3 arguments: a list `x`, a function, and other stuff for the `...` argument (passed to the function). If `x` isn't a list, it'll be coerced by `as.list()`.
+
+```{r}
+x <- list(a = 1:5, b = rnorm(10)); x
+lapply(x, mean)
+```
+
+So `mean` gets applied to both elements of that list and returns a list. Also consider this example:
+
+```{r}
+lapply(1:4, runif)
+```
+
+This applies `runif()` to each element of that sequence, generating 1, 2, 3, and then 4 random uniform variables. You can change the range of those variables by passing the appropriate `runif` arguments to `lapply`.
+
+```{r}
+lapply(1:4, runif, min = 0, max = 10)
+```
+
+#### Anonymous functions
+You can create ad hoc functions to do one-off tasks that don't already have predefined functions. This basically means you define a function within the context of calling `lapply` and that function only exists there.
+
+For instance, assume `x` is a list of 2 elements, each element being a matrix. This example returns the first column of each matrix.
+
+```{r}
+mtxList <- list(a = matrix(rnorm(12), 3, 4), b = matrix(rnorm(15), 5, 3))
+lapply(mtxList, function(elt) elt[, 1])
+```
+
+Anonymous functions can be kinda tricky, but their form is basically the same as full functions in R scripts: `function(<args>) <body>`.
+
+When calling an anonymous function, it's important to remember that you must use parentheses as a kind of wrapper for the nameless function, as well as to define the inputs for the function. So you must call `(function(x) x + 3)(10)` to get 13. More info on anonymous functions can be found [here](http://adv-r.had.co.nz/Functional-programming.html#anonymous-functions).
+
+### `sapply`
+This is basically the same as `lapply`, but it will simplify the result if returning a list doesn't make sense. So if the result is a list where every element is length 1, then `sapply` just turns it into a vector (a matrix if every element is the same length and > 1). Returns a list if it can't figure anything else out.
+
+### `mapply`
+A multivariate version of `lapply` used for applying functions to multiple arguments. This is useful when your function takes multiple inputs. Take `rep()` for instance. `rep(x, n)` simply repeats `x` `n` times. The important distinction here is that `rep()` takes 2 arguments as input.
+
+If you wanted to call `rep()` several times in a row, you could use `mapply(fun, arg1, arg2)` to pull it off. Note that the argument structure is different tahn `lapply(x, mean)`, where the argument for the function comes first. Here, the function comes first, arguments second.
+
+```{r}
+mapply(rep, 1:4, 4:1)
+```
+
+This is a quick method of vectorizing functions. The function will iteratively be applied to the $i^{th}$ set of arguments from each list provided.
+
+### `tapply`
+This version of `apply` is used to apply a funciton over a subset of a vector. No idea why it has a T prefix. This idea is that you use factors (or a list of factors) to slice up your dataset to tell `tapply` where to apply the function.
+
+So let's say we have a this vector, 3 sets of 10 variables from the normal, uniform, then normal distributions. Then we'll add factor levels with the `gl()` function.
+
+```{r}
+x <- c(rnorm(10), runif(10), rnorm(10, 1)); x
+f <- gl(3, 10); f        # 3 factor levels, repeated in 10s
+tapply(x, f, mean)
+```
+
+So `tapply` applies the mean function to `x` and in groupings determined by `f`. This returns a list unless you set `simplify = TRUE`.
+
+### `split`
+`split` is used to split up (geddit?) a vector or what have you into groups based on factors. Same principle as `tapply`, but doesn't apply anything, isn't a loop. Just splits the vector into groups. The `drop` argument is a logical that determines whether or not to drop empty factor levels. Returns a list. 
+
+```{r}
+split(x, f)
+```
+
+This let's you do things like split up a data frame based on 1 column (a factor), then perform analysis on each of the data frame subsets. So you can take the `airquality` dataset, split it by month, then take the mean by month.
+
+```{r}
+s <- split(airquality, airquality$Month)
+lapply(s, function(x) colMeans(x[, c("Ozone", "Solar.R", "Wind")]))
+```
+
+So we broke the dataset by month, then called an anonymous function using `colMeans()`, but only on a few columns. The results are in a weird list construct that is miserable, and there are `NA`'s. Let's fix that with `sapply`.
+
+```{r}
+sapply(s, function(x) colMeans(x[, c("Ozone", "Solar.R", "Wind")], na.rm = TRUE))
+```
+
+BAM! Pivoted data.
+
+You can also split by more than 1 factor. Random data to demonstrate.
+
+```{r}
+x <- rnorm(10); x
+f1 <- gl(2, 5); f1
+f2 <- gl(5, 2); f2
+```
+
+The `interaction()` function shows all possible combinations of those factors and creates a new series of levels based on them. This is then like a factor describing the interaction of the 2 previous factors.
+
+Similarly, we can pass `split` a list of factors and it will split by their combinations.
+
+```{r}
+split(x, list(f1, f2))
+```
+
+So we can see that we captured all the combinations of `f1` and `f2`, but it's likely that not every combination of factors will be represented in the dataset. This would mean that some combinations aren't represented in the returned data, but `drop = FALSE` will ensure that those combinations show up as empty sets.
+
+## Debugging
+
+### Diagnosing the problem
+R will let you know when things fuck up in various ways. It'll use:
+
+* messages: just a notification, produced by the `message` function; execution continues
+* warnings: something is wrong, not necessarily fatal, produced by `warning`, execution continues
+* error: shit's fucked, produced by `stop`, execution stops
+* condition: a generic concept for indicating that something unexpected can occur, sort of a user-defined arena
+
+`invisible()` is a function that you can use in your functions. It returns the value that is passed to it, but it suppresses autoprinting.
+
+Questions to ask when shit's fucked:
+
+* what was your input? how did you call the function?
+* what were you expecting? output, messages, other results?
+* what did you get? how was it different than expected?
+* were your expectations right?
+* can you reproduce it?
+
+### Basic debugging tools
+The basic toolset is:
+
+* `traceback`: prints out the function call stack after an error occurs; does nothing if there's no error
+* `debug`: flags a function for debug mode, which means you can step through execution 1 line at a time
+* `browser`: suspends the execution of a function from wwherever it's called and puts the function in debug mode; let's you start debugging where you actually give a shit
+* `trace`: allows you to insert debugging code into a function without editing the function
+* `recover`: allows you to modify the error behavior so you can browse the function call stack
+
+end
