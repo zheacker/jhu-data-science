@@ -1,0 +1,88 @@
+---
+title: "3. Get and Clean Data: Week 1 Notes"
+output: html_notebook
+---
+
+# Reading Data
+The goal of this course is to focus on getting data and, more importantly, getting it ready for analysis. This is the real work of data science.
+
+This course will focus on the first 3 steps of the data science process:
+
+1. Raw data
+2. Processing script
+3. Tidy data
+4. Data Analysis
+5. Data communication
+
+## Raw and Processed Data
+Raw data is the data as it was delivered from the original source. The first time you lay your hands on it, that's the raw data.
+
+Processed data is data which is ready for analysis. Processing can include merging, subsetting, transforming, etc. **EVERYTHING NEEDS TO BE RECORDED!!** (Literate programming and notebooks can help with this.)
+
+NOTE: it's important to note that the data existed before you put your hands on it, and it might be worthwhile to understand some of the processing that the data went through before you got it and it 'raw.'
+
+### Components of tidy data
+
+1. the raw dataset
+     - absolutely raw
+2. a tidy dataset
+     - each variable should be in 1 column
+     - each different observation should be in 1 row
+     - there should be 1 table for each "kind" of variable
+     - if you have multiple tables, include the necessary identification columns
+     - include a row at the top with variable names
+     - make variable names human readable
+     - only put 1 table in a file
+3. a code book describing everything about your tidy dataset
+     - information about the variables (units)
+     - information about summary choices
+     - information about the experimental study design you used
+     - commonly just a word/text file
+     - the point here is to simply explain your goals and process
+4. an exact recipe for how you got from raw to tidy
+     - there are several ways to do this, but scripts/notebooks are the way to go
+     - the input is the raw dataset
+     - the output is the tidy dataset
+     - if a step can't be scripted, then explicitly record every detail of the step so it can be repeated exactly
+     
+## Downloading files
+It's important to set a project working directory that will serve as the root of the entire project (git repo). You can automatically manage project directories by checking for their existence at the beginning of a script, then creating them if necessary.
+
+```{r, eval=FALSE}
+if (!file.exists("data")) {
+     dir.create("data")
+}
+```
+
+You can use the `download.file()` function to download a file, but shell scripting might make more sense here? Maybe? I dunno... Regardless, don't download by hand, make it all reproducible.
+
+```{r, eval=FALSE}
+fileUrl <- "copy link address URL goes here"
+download.file(fileUrl, destfile = "./path/to/dir", method = "curl")
+list.files("./path/to/dir")
+dataDownlaoded <- date()
+```
+
+In general, `curl` is a safe method, works for HTTPS URLs; also be sure to capture date/time.
+
+### Reading local flat files
+`read.table()` is the most common method of reading in flat files. Most of this has been covered in the R Programming class. You can also set `quote = ""` to help R deal with quotation marks in files.
+
+### Reading excel files
+Fuck excel, but they're goddamn everywhere...
+
+```{r, eval=FALSE}
+if(!file.exists("data")) {dir.create("data")}
+
+fileURL <- "excel file URL"
+download.file(fileURL, destfile = "./path/to/file.xlsx", method = "curl")
+dateDownloaded <- date()
+
+library(xlsx)
+
+```
+
+
+
+
+buffer
