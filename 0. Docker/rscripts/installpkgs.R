@@ -8,7 +8,8 @@ toInstall <- c(
      "GGally",
      "kernlab",
      "UsingR",
-     "wesanderson"
+     "wesanderson",
+     "xlsx"
 )
 
 install.packages(toInstall, quiet=TRUE)

@@ -4,6 +4,7 @@
 .Ruserdata
 
 *.R
+!installpkgs.R
 
 *.html
 !*.nb.html
