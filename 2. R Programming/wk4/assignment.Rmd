@@ -1,0 +1,208 @@
+---
+title: "2. R Programming: Week 4 Assignment"
+output: html_notebook
+---
+
+# Intro
+This is the hospital assignment. The PDF and dataset are in the data directory of this week. The goal is to sort/arrange/subset/filter a dataset. Let's begin.
+
+## 1. plot the data
+First, we'll read in the outcome data, then we'll take a look at a small portion of it.
+
+```{r}
+dir("./data")
+outcome <- read.csv(paste0("./data/", dir("./data")[3]), colClasses = "character")
+head(outcome)
+str(outcome)
+```
+
+Let's start with a histogram of the 30 day death rates from heart attacks. The "outcomes" dataset lists > 4000 hospitals, and column 11 is the 30-day risk-adjusted rate for heart attacks. We'll coerce this column to be numeric and make a histogram.
+
+```{r}
+outcome[, 11] <- as.numeric(outcome[, 11])
+hist(outcome[, 11])
+```
+
+## 2. find the best hospital in the state
+Now we'll write a function `best()` that will take a state and outcome name and return the top hospital. Need to return the `Hospital.Name`. Outcome can be either "heart attack", "heart failure", or "pneumonia." Exclude `NA`'s. Return 1st hospital alphabetically in the event of a tie. Here's the plan:
+
+1. read the .csv
+2. pull only relevant columns
+3. make list of states (from data)
+4. make list of outcomes
+5. rename 3 outcomes columns
+6. check for valid state and outcome input
+7. split the dataset by state
+8. order each state subset by hospital name (for ties)
+9. use `which.min()` to find the index of the minimum value for this outcome
+10. use that index to return the correct hospital name
+
+```{r}
+best <- function(state, outcome) {
+     
+     # read the outcome data, cast outcomes as numeric
+     all <- read.csv(paste0("./data/", dir("./data")[3]), colClasses = "character")
+     data <- all[, c(2, 7, 11, 17, 23)]
+     
+     # generate vector of valid states based on state abbrreviations from the data
+     # make vector of outcomes
+     states <- levels(as.factor(data[, 2]))
+     outcomes <- c("heart attack", "heart failure", "pneumonia")
+     
+     for (c in 3:5) {
+          suppressWarnings(data[, c] <- as.numeric(data[, c]))
+          names(data)[c] <- outcomes[c-2]
+     }
+     
+     # check that the state and outcome inputs are valid
+     if (!is.element(outcome, outcomes)) {
+          stop("invalid outcome")
+     } else if (!is.element(state, states)) {
+          stop("invalid state")
+     }
+     
+     # split data by state; order every data frame in list by hospital name
+     data <- lapply(split(data, data$State), function(x) x[order(x$Hospital.Name), ])
+     
+     # find index of outcome minimum for each state, then for this state
+     indvec <- sapply(data, function(x) which.min(x[[outcome]]))
+     ind <- unname(indvec[state])
+     
+     # return the hospital name in that state whith the lowest 30-day death rate
+     name <- as.vector(data[[state]]$Hospital.Name)[ind]
+     
+     name
+}
+```
+
+Now, we test:
+
+```{r, error=TRUE}
+best("TX", "heart attack")
+best("TX", "heart failure")
+best("MD", "heart attack")
+best("MD", "pneumonia")
+best("BB", "heart attack")
+best("NY", "hert attack")
+```
+
+## 3. Rank hospitals by outcome in a state
+I need to write a function called `rankhospital` that takes 3 args: state, outcome, the ranking of a hospital in that state for that outcome. I need to return the hospital name that has that rank. The rank arg can accept "best" or "worst" as well as integers; return `NA` if the number > # of hospitals in that state. Exclude `NA`'s from rankings. Ties should be broken by hospital name.
+
+Need to check the validity of args.
+
+The plan:
+
+1. if rank is "best", call `best()`
+2. read.csv
+3. pull only relevant columns
+4. make list of states (from data)
+5. make list of outcomes
+6. rename 3 outcome columns
+7. check for valid state and outcome input
+8. if rank is "worst"
+     - split data by state, order by outcome (desc) and hospital name (asc)
+     - use `which.max` to find the index of the max value for this outcome (spoiler, it's the 1st in the list, cause we ordered by this)
+     - use that index (1) to return hospital name
+9. else
+     - split data by state, order by outcome (asc)
+     - use `num` arg as index to return hospital name
+     
+     
+```{r}
+rankhospital <- function(state, outcome, num = "best") {
+     
+     if (num == "best") {
+          name <- best(state, outcome)
+     }
+     
+     data <- read.csv(paste0("./data/", dir("./data")[3]), colClasses = "character")
+     data <- data[, c(2, 7, 11, 17, 23)]
+     
+     states <- levels(as.factor(data[, 2]))
+     outcomes <- c("heart attack", "heart failure", "pneumonia")
+     
+     for (c in 3:5) {
+          suppressWarnings(data[, c] <- as.numeric(data[, c]))
+          names(data)[c] <- outcomes[c-2]
+     }
+     
+     if (!is.element(outcome, outcomes)) {
+          stop("invalid outcome")
+     } else if (!is.element(state, states)) {
+          stop("invalid state")
+     }
+     
+     if (num == "worst") {
+          wdata <- lapply(split(data, data$State), function(x) x[order(-x[outcome], x$Hospital.Name), ])
+          indvec <- sapply(wdata, function(x) which.max(x[[outcome]]))
+          ind <- unname(indvec[state])
+          name <- as.vector(wdata[[state]]$Hospital.Name)[ind]
+     } else {
+          rdata <- lapply(split(data, data$State), function(x) x[order(x[outcome], x$Hospital.Name), ])
+          ind <- num
+          name <- as.vector(rdata[[state]]$Hospital.Name)[ind]
+     }
+     name
+}
+```
+
+And now we test.
+
+```{r, error=TRUE}
+rankhospital("TX", "heart failure", 4)
+rankhospital("MD", "heart attack", "worst")
+rankhospital("MN", "heart attack", 5000)
+```
+
+Nailed it.
+
+## 4. Rank hospitals in all state
+`rankall()` takes 2 args: outcome and rank (num). This function returns a 2 column data frame (state and hospital name). Column 1 is hospital name, column 2 si state. Handle ties alphabetically.
+
+```{r}
+rankall <- function(outcome, num = "best") {
+     outcomes <- c("heart attack", "heart failure", "pneumonia")
+     
+     if (!is.element(outcome, outcomes)) {
+          stop("invalid outcome")
+     }
+     
+     data <- read.csv(paste0("./data/", dir("./data")[3]), colClasses = "character")
+     data <- data[, c(2, 7, 11, 17, 23)]
+     
+     states <- levels(as.factor(data[, 2]))
+     
+     for (c in 3:5) {
+          suppressWarnings(data[, c] <- as.numeric(data[, c]))
+          names(data)[c] <- outcomes[c-2]
+     }
+     
+     sp <- split(data, data$State)
+     
+     if (num == "worst") {
+          num <- 1L
+          wdata <- lapply(sp, function(x) x[order(-x[outcome], x$Hospital.Name), ])
+          rdf <- data.frame(hospital = unname(sapply(wdata, function(x) x[[1]][num])), state = names(wdata))
+     } else {
+          rdata <- lapply(sp, function(x) x[order(x[outcome], x$Hospital.Name), ])
+          
+          if (num == "best") {
+               num <- 1L
+          }
+          
+          rdf <- data.frame(hospital = unname(sapply(rdata, function(x) x[[1]][num])), state = names(rdata))
+     }
+     rdf
+}
+```
+
+And the tests.
+
+```{r}
+head(rankall("heart attack", 20), 10)
+tail(rankall("pneumonia", "worst"), 3)
+tail(rankall("heart failure"), 10)
+```
+
+Yep, I'm awesome.
