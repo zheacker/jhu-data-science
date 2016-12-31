@@ -7,4 +7,7 @@ See the Docker directory for information on building the docker image and launch
 ## Course 1: The Data Scientist's Toolbox
 This course is just some basic theory about data science and some irrelevant practical details re: setting up RStudio and git.
 
+## Course 2: R Programming
+This course is a brief into to R, RStudio, and the basic objects and functions used in data analysis.
+
 Additional courses will be posted as they're completed.
