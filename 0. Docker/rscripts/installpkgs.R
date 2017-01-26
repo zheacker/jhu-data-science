@@ -14,3 +14,7 @@ toInstall <- c(
 install.packages(toInstall, quiet=TRUE)
 
 rm(toInstall)
+
+## install any bioconductor packages necessary
+library(BiocInstaller)
+biocLite("rhdf5")
