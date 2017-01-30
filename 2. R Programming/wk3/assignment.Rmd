@@ -1,0 +1,86 @@
+---
+title: "2. R Programming: Week 3 Assignment"
+output: html_notebook
+---
+
+# Intro
+This is the matrix inversion cache assignment. The repo containing the starter scripts is found [here](https://github.com/rdpeng/ProgrammingAssignment2). I'm not cloning that one, I'm just gonna do my own thing here.
+
+I've gotta write 2 functions, `makeCacheMatrix()` and `cacheSolve()`.
+
+* `makeCacheMatrix`: creates a special matrix object that can cache its own inverse
+* `cacheSolve`: computes the inverse of the special object created by `makeCacheMatrix` by checking for a cached value and then calculating the inverse only if necessary
+
+Once the functions are written, I need to write some test cases to prove that it works.
+
+## `makeCacheMatrix`
+This function needs to:
+
+* set the value of the matrix
+* get the value of the matrix
+* set the value of the inverse
+* get the value of the inverse
+
+... and then store those functions in a list.
+
+```{r}
+makeCacheMatrix <- function(x = numeric()) {
+     
+     cinv <- NULL
+     
+     set <- function(y) {
+          x <<- y
+          cinv <<- NULL
+     }
+     
+     get <- function() x
+     
+     setinverse <- function(inverse) cinv <<- inverse
+     
+     getinverse <- function() cinv
+     
+     list(set = set, get = get, setinverse = setinverse, getinverse = getinverse)
+}
+```
+
+## `cacheSolve`
+This one needs to:
+
+* get the cached inverse value
+* if that's null, calculate the inverse
+* then set the inverse
+
+```{r}
+cacheSolve <- function(x, ...) {
+     inv <- x$getinverse()
+     if(!is.null(inv)) {
+          message("getting cached data")
+          return(inv)
+     }
+     data <- x$get()
+     inv <- solve(data, ...)
+     x$setinverse(inv)
+     inv
+}
+```
+
+## Tests
+This section just runs some tests to demonstrate that this thing is actually caching and retrieving results. First, we make a matrix and use the `makeCacheMatrix` function on it. Then we can use `cacheSolve` to find the inverse.
+
+```{r}
+set.seed(75)
+mtx <- matrix(rnorm(25, 100, 10), 5, 5)
+newmtx <- makeCacheMatrix(mtx)
+solve(mtx)
+cacheSolve(newmtx)
+```
+
+So we managed to solve correctly for the inverse. Kewl.
+
+Now, if we ask for the inverse again, we should just pull from the cache, rather than recomputing it. Let's see.
+
+```{r}
+cacheSolve(newmtx)
+```
+
+Damn it feels good to be a gangsta.
