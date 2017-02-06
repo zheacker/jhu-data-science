@@ -107,3 +107,103 @@ html <- xml2::read_html(url)
 html
 ```
 
+OK, so the lectures use the `XML` package for this, but I'm going to use `xml2`, cause Hadley. So I'm gonna skip this stuff, I'll dig into `xml2` later, when I decide I need it.
+
+But you can also use the `GET` method from the `httr` package.
+
+```{r}
+library(httr)
+html2 = GET(url)
+
+content2 = content(html2, as = "text")
+parsedHtml = xml2::read_html(content2)
+```
+
+Again, I think they're using some `XML` functions here, so I'm probably gonna wind up skipping some of this.
+
+But the `GET` method extracts the data from the URL, then extracts the text with `content()`.
+
+This method allows you to access sites with a username and password, and store the authentication for multiple uses via "handles."
+
+```{r, eval=FALSE}
+site = GET("http://url.here.com", authenticate("username", "password"))
+names(site)
+
+## handles
+google = handle("http://google.com")
+pg1 = GET(handle=google, path="/")
+pg2 = GET(handle=google, path="/")
+```
+
+Using handles allows your cookies to be retained so your authentication persists.
+
+**NOTE:**
+
+* examples [here](https://www.r-bloggers.com/search/Web+Scraping/)
+* and [here](https://cran.r-project.org/web/packages/httr/httr.pdf)
+
+## Reading from APIs
+Usually, you need to create a dev account and register an app. This gives you your API keys.
+
+Then you can start the authentication process as below:
+
+```{r, eval=FALSE}
+myapp = oauth_app("appname", key = "your consumer key", secret = "your consumer secret")
+sig = sign_oauth1.0(myapp, token = "your token", token_secret = "your token secret")
+homeTL = GET("http://twitter.api.url.here", sig)
+
+## now you can read it in a couple of ways
+## this way is messy; content() recognizes json and formats it
+json1 = content(homeTL)
+
+## this way makes it more readable
+json2 = jsonlite::fromJSON(jsonlite::toJSON(json1))
+```
+
+You need to study the API documentation, but `httr` allows `GET`, `POST`, `PUT`, and `DELETE`, if you're authorized. You can authenticate with a username and password. Most APIs use oauth, get familiar with it. And check out the `httr` demo section on github.
+
+## Reading from Other Sources
+There are lots of other places from which you can get data. There's an R package for everything, so get to googlin'.
+
+#### Interacting with files more directly
+
+* `file` - open a connection to a text file
+* `url` - open a connection to a URL
+* `gzfile` - "" .gz file
+* `bzfile` - "" .bz2 file
+* `?connections` for more info
+* **remember to close connections**
+
+#### foreign package
+
+* loads data from minitab, S, SAS, SPSS, Stata, Systat
+     * `read.arff` (weka)
+     * `read.dta` (stata)
+     * `read.mtp` (minitab)
+     * `read.octave` (octave)
+     * `read.spss` (spss)
+     * `read.xport` (sas)
+     
+#### database packages
+
+* `RPostgreSQL`
+* `RODBC` - multiple databases, postgres, mysql, msft access, sqlite
+* `RMongo` and `mongodb` - mongo db
+
+#### Reading images
+
+* `jpeg`
+* `readbitmap`
+* `png`
+* `EBImage` (bioconductor)
+
+#### Reading GIS data
+
+* `rdgal`
+* `rgeos`
+* `raster`
+
+#### reading music data
+
+* `tuneR`
+* `seewave`
