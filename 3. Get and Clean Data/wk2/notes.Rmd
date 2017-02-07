@@ -1,5 +1,5 @@
 ---
-title: "3. Get and Clean Data: Week 2 Notes            "
+title: "3. Get and Clean Data: Week 2 Notes"
 output: html_notebook
 ---
 
