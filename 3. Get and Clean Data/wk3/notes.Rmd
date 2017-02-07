@@ -1,0 +1,100 @@
+---
+title: "3. Get and Clean Data: Week 3 Notes"
+output: html_notebook
+---
+
+# Install/load packages
+In this section I dealt with all the package installation/loading. Well, packages are now installed at the docker image level, and loading will be handled as needed. So, moving on...
+
+# Organizing & Managing Data
+
+### Subsetting & Sorting
+Quick review:
+
+```{r}
+set.seed(13435)
+x <- data.frame("var1"=sample(1:5), "var2"=sample(6:10), "var3"=sample(11:15))
+x <- x[sample(1:5), ]
+x$var2[c(1, 3)] = NA
+x
+```
+
+You can subset a specific column with `x[, 1]`. You can get the same thing with `x[, "var1"]`. You can subset rows and columns with `x[1:2, "var2"]`.
+
+```{r}
+x[, 1]
+x[, "var2"]
+x[1:2, "var3"]
+```
+
+### Subsetting with logic
+``` {r}
+x[(x$var1 <= 3 & x$var3 > 11), ]
+x[(x$var1 <= 3 | x$var3 > 11), ]
+```
+
+The `which()` command returns indices and excludes `NA`'s by default, so this:
+```{r}
+x[which(x$var2 > 8), ]
+```
+
+### Sorting
+
+```{r}
+sort(x$var1)
+sort(x$var1, decreasing = TRUE)
+sort(x$var2, na.last = TRUE)
+```
+
+You can also order a data frame by a particular variable/column.
+
+```{r}
+x[order(x$var1), ]
+x[order(x$var1, x$var3), ]
+```
+
+The `plyr` package lets you order with the `arrange()` command.
+
+```{r}
+library(plyr)
+arrange(x, var1)
+arrange(x, desc(var1))
+```
+
+### Adding rows/columns
+You can add a new column just by naming it.
+
+```{r}
+x$var4 <- rnorm(5)
+cbind(x, rnorm(5))
+x
+```
+
+## Summarizing Data
+Let's download some data (Baltimore restaurant dataset), then read it:
+
+```{r}
+## setup URL and path variables for this data
+resturl <- "http://data.baltimorecity.gov/api/views/k5ry-ef3g/rows.csv?accessType=DOWNLOAD"
+datapath <- "3. Get and Clean Data/wk3/data"
+restpath <- paste0(datapath, "/restaurants.csv")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created data directory")
+} else {
+     print("data directory already exists")
+}
+
+## if there's no data, then download it
+if(!file.exists(restpath)) {
+     download.file(url = resturl, destfile = restpath)
+     print("downloaded the data file")
+} else {
+     print("found data, ready to go")
+}
+
+restData <- read.csv(restpath)
+```
+
