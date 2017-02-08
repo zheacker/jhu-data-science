@@ -1,0 +1,140 @@
+---
+title: "3. Get and Clean Data - Project"
+output: html_notebook
+---
+
+
+<!---
+this install chunk is unnecessary since hadleyverse has all these packages
+-->
+
+```{r installpkgs, echo=FALSE, eval=FALSE}
+installedList <- rownames(installed.packages())
+
+## It's important to note the order of pkgList. Packages should be specified in the order that they should be loaded
+pkgList <- c("dplyr")
+loadlist <- pkgList
+
+toInstall <- pkgList[!is.element(pkgList, installedList)]
+
+n <- length(toInstall)
+
+if(n > 0) {
+     install.packages(toInstall)
+     print("The following packages were installed:")
+     toInstall
+} else {
+     print("nothing to install; job's finished.")
+}
+```
+
+<!---
+this load chunk is unnecessary after the hadleyverse shift
+-->
+
+```{r loadpkgs, echo=FALSE, eval=FALSE}
+loadlist <- c("dplyr")
+knitrlist <- c("ezknitr", "knitr")
+otherpkgslist <- names(sessionInfo()$otherPkgs)
+detachlist <- otherpkgslist[!is.element(otherpkgslist, knitrlist)]
+prefixdetach <- sapply(detachlist, function(x) paste0("package:", x), USE.NAMES = FALSE)
+
+invisible(sapply(prefixdetach, function(x) try(detach(x, character.only = TRUE))))
+
+suppressMessages(sapply(loadlist, library, character.only = TRUE))
+```
+
+```{r load}
+library(dplyr)
+```
+
+```{r download, echo = FALSE}
+## setup URL and path variables for this data
+url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+getwd()
+dirpath <- getwd()
+datapath <- "./data"
+zippath <- "./temp.zip"
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!length(dir(datapath)) > 0) {
+     if(!file.exists(zippath)) {
+          download.file(url, destfile = zippath)
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Downloaded & extracted data file")
+     } else {
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Found .zip, extracted")
+     }
+} else {
+     print("Found data, ready to go")
+}
+```
+
+```{r tidyup}
+datapath <- "./data/UCI HAR Dataset/"
+testpath <- paste0(datapath, "test/")
+trainpath <- paste0(datapath, "train/")
+
+datalist <- list.files(datapath)
+testlist <- list.files(testpath)[2:4]
+trainlist <- list.files(trainpath)[2:4]
+
+## Read in the necessary files
+subtest <- read.table(paste0(testpath, testlist[1]))
+subtrain <- read.table(paste0(trainpath, trainlist[1]))
+
+xtest <- read.table(paste0(testpath, testlist[2]))
+ytest <- read.table(paste0(testpath, testlist[3]))
+
+xtrain <- read.table(paste0(trainpath, trainlist[2]))
+ytrain <- read.table(paste0(trainpath, trainlist[3]))
+
+activityLabels <- read.table(paste0(datapath, datalist[1]))
+features <- read.table(paste0(datapath, datalist[3]))
+
+## ID mean/std features
+featureinds <- grep("(*mean*)|(*std*)", as.character(features[[2]]))
+featurenames <- as.character(features[featureinds, ][[2]])
+
+## Select mean/std features from x's, rename features
+xtest <- select(xtest, num_range("V", featureinds))
+xtrain <- select(xtrain, num_range("V", featureinds))
+names(xtest) <- featurenames
+names(xtrain) <- featurenames
+
+## Append subject ID to datasets
+subtest <- rename(subtest, subject = V1)
+subtrain <- rename(subtrain, subject = V1)
+xtest$subject <- subtest[[1]]
+xtrain$subject <- subtrain[[1]]
+
+## Join activity names to ID's
+ytest <- left_join(ytest, activityLabels)[, 2]
+ytrain <- left_join(ytrain, activityLabels)[, 2]
+
+## Append activity names to datasets
+xtest$activity <- as.character(ytest)
+xtrain$activity <- as.character(ytrain)
+
+## Bind rows to combine test and train datasets into 1 data frame
+alldata <- bind_rows(xtest, xtrain)
+head(sample(alldata, 10))
+
+## Group and summarize
+tidyset <- alldata %>% group_by(subject, activity) %>%
+  summarize_all(mean) %>% arrange(subject, activity)
+
+head(tidyset)
+```
