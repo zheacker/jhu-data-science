@@ -1,0 +1,161 @@
+---
+title: "4. Exploratory Analysis - Week 1 Assignment"
+output: html_notebook
+---
+
+# The Data
+This data comes from the UC Irvine Machine Learning Repo; it's available [here](https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2Fhousehold_power_consumption.zip). [Here's](https://github.com/rdpeng/ExData_Plotting1) the github page for this project.
+
+We're looking at residential power consumption rates. 1 minute sampling interval over nearly 4 years. 2M rows and 9 columns.
+
+## Gitkraken 'Out of Memory'
+Gitkraken is throwing an error when I try to stage the data .txt file for this assignment. So for now, the downloading and placement of the file will have to take place external to git. Download the `household_power_consumption.txt` file from above, and place it in the `4. Explore/wk1/data` directory. Then source `4. Explore/wk1/project.R` and it'll complete the assignment.
+
+# Install/load
+First, we do the typical install game...
+
+```{r installpkgs, echo=FALSE, eval=FALSE}
+installedList <- rownames(installed.packages())
+
+## It's important to note the order of pkgList. Packages should be specified in the order that they should be loaded
+pkgList <- c("dplyr")
+loadlist <- pkgList
+
+toInstall <- pkgList[!is.element(pkgList, installedList)]
+
+n <- length(toInstall)
+
+if(n > 0) {
+     install.packages(toInstall)
+     print("The following packages were installed:")
+     toInstall
+} else {
+     print("nothing to install; job's finished.")
+}
+```
+
+Then we do the typical package load game...
+
+```{r load}
+library(dplyr)
+```
+
+```{r loadpkgs, echo=FALSE, eval=FALSE}
+loadlist <- c("dplyr")
+knitrlist <- c("ezknitr", "knitr")
+otherpkgslist <- names(sessionInfo()$otherPkgs)
+detachlist <- otherpkgslist[!is.element(otherpkgslist, knitrlist)]
+prefixdetach <- sapply(detachlist, function(x) paste0("package:", x), USE.NAMES = FALSE)
+
+invisible(sapply(prefixdetach, function(x) try(detach(x, character.only = TRUE))))
+
+suppressMessages(sapply(loadlist, library, character.only = TRUE))
+```
+
+# Download
+Then we do the typical download game...
+
+```{r download, echo = FALSE}
+## setup URL and path variables for this data
+url <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2Fhousehold_power_consumption.zip"
+datapath <- "./data/"
+zippath <- paste0(datapath, "temp.zip")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!length(dir(datapath)) > 0) {
+     if(!file.exists(zippath)) {
+          download.file(url, destfile = zippath)
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Downloaded & extracted data file")
+     } else {
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Found .zip, extracted")
+     }
+} else {
+     print("Found data, ready to go")
+}
+```
+
+# The actual assignment
+Now, we do the actual work.
+
+```{r}
+# read .txt data file
+alldata <- read.table(
+      "./data/household_power_consumption.txt",
+      header = TRUE,
+      sep = ";",
+      na.strings = "?",
+      colClasses = c(rep("character", 2),rep("numeric", 7))
+)
+
+figpath <- "./output-assignment/figures/"
+
+# prepare dataset w/ dplyr
+alldata <- alldata %>%
+      mutate(datetime = as.POSIXct(paste(Date, Time),
+          format = "%d/%m/%Y %H:%M:%S")) %>%
+      select(datetime, 3:9) %>%
+      filter(datetime >= "2007-02-01" & datetime < "2007-02-03")
+```
+
+```{r plot1}
+# make plot 1
+# png(paste0(figpath, "plot1.png"))
+hist(alldata$Global_active_power,
+     main = "Global Active Power",
+     col = "Red",
+     xlab = "Global Active Power (kilowatts)")
+# dev.copy(png, file = paste0(figpath, "plot1.png"))
+# dev.off()
+```
+
+```{r plot2}
+# make plot 2
+# png(paste0(figpath, "plot2.png"))
+plot(alldata$datetime, alldata$Global_active_power,
+     ylab = "Global Active Power (kilowatts)", xlab = "", type = "l")
+# dev.off()
+```
+
+```{r plot3}
+# make plot 3
+# png(paste0(figpath, "plot3.png"))
+plot(alldata$datetime, alldata$Sub_metering_1, type = "l",
+     ylab = "Energy sub metering", xlab = "")
+lines(alldata$datetime, alldata$Sub_metering_2, col = "red")
+lines(alldata$datetime, alldata$Sub_metering_3, col = "blue")
+legend("topright", legend = names(alldata)[6:8], lty = 1,
+       col = c("black", "red", "blue"))
+# dev.off()
+```
+
+```{r plot4}
+# make plot 4
+# png(paste0(figpath, "plot4.png"))
+par(mfrow = c(2, 2))
+plot(alldata$datetime, alldata$Global_active_power, type = "l",
+     xlab = "", ylab = "Global Active Power")
+plot(alldata$datetime, alldata$Voltage, type = "l",
+     xlab = "datetime", ylab = "Voltage")
+plot(alldata$datetime, alldata$Sub_metering_1, type = "l",
+     xlab = "", ylab = "Energy sub metering")
+lines(alldata$datetime, alldata$Sub_metering_2, col = "red")
+lines(alldata$datetime, alldata$Sub_metering_3, col = "blue")
+legend("topright", legend = names(alldata)[6:8], lty = 1,
+     col = c("black", "red", "blue"), bty = "n")
+plot(alldata$datetime, alldata$Global_reactive_power, type = "l",
+     xlab = "datetime", ylab = names(alldata)[3])
+# dev.off()
+```
