@@ -1,0 +1,211 @@
+---
+title: "3. Get and Clean Data: Week 4 Notes"
+output: html_notebook
+---
+
+# Text & date manipulation
+
+## Editing text variables
+This lecture is about how to programmatically edit text values to make your data look like you need it to look. We'll use the Baltimore dataset again (and also the peer review data from last week?).
+
+So let's grab the data:
+
+```{r}
+## setup URL and path variables for this data
+cameraUrl <- "https://data.baltimorecity.gov/api/views/dz54-2aru/rows.csv?accessType=DOWNLOAD"
+dirpath <- getwd()
+datapath <- paste0(dirpath, "/data")
+camerapath <- paste0(datapath, "/cameras.csv")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, then download it
+if(!file.exists(camerapath)) {
+     download.file(url = cameraUrl, destfile = camerapath, method = "wget")
+     print("Downloaded the data file")
+} else {
+     print("Found data, ready to go")
+}
+
+cameraData <- read.csv(camerapath)
+```
+
+### `tolower` and `toupper`
+These functions convert character vectors to all lower or all upper case.
+
+```{r}
+tolower(names(cameraData))
+toupper(names(cameraData))
+```
+
+### `strsplit` - string split
+This function splits a string based on specific characters. So `location.1` can be split by the `.` Note that the `\\` is necessary as an escape character. Importantly, `strsplit` creates a list where each element is a list of string elements. So to access `location` after splitting `location.1`, you would access `returned[[6]][1]` to get the 1st part of the 6th variable name.
+
+```{r}
+splitNames <- strsplit(names(cameraData), "\\.")
+splitNames
+splitNames[[6]][1]
+firstElement <- function(x){x[1]}
+sapply(splitNames, firstElement)
+```
+
+Notice that we programmatically accessed the 1st part of the split variable names above by using an anonymous function which accesses the first element of something. Then we `sapply`'d that function to our returned list.
+
+### `sub` and `gsub`
+Now we're using the peer review data all of a sudden? wtf?
+
+```{r}
+reviewsurl <- "https://dl.dropboxusercontent.com/u/7710864/data/reviews-apr29.csv"
+solutionsurl <- "https://dl.dropboxusercontent.com/u/7710864/data/solutions-apr29.csv"
+revpath <- paste0(datapath, "/reviews.csv")
+solpath <- paste0(datapath, "/solutions.csv")
+
+if(!file.exists(revpath)) {
+     download.file(url = reviewsurl, destfile = revpath, method = "wget")
+     print("reviews data downloaded and ready to go")
+} else {
+     print("reviews data present and ready to go")
+}
+
+if(!file.exists(solpath)) {
+     download.file(url = solutionsurl, destfile = solpath, method = "wget")
+     print("solutions data downloaded and ready to go")
+} else {
+     print("solutions data present and ready to go")
+}
+
+reviews <- read.csv(revpath)
+solutions <- read.csv(solpath)
+head(reviews)
+head(solutions)
+```
+
+Maybe you hate the `_` in the variable names. `sub()` lets you replace 1 character with another character, specifically the first one it finds.
+
+```{r}
+sub("_", "", names(reviews))
+```
+
+`gsub` does the same thing, just replaces all the characters that it finds.
+
+```{r}
+gsub("_", "", names(reviews))
+```
+
+### `grep` and `grepl`
+`grep` is the good old fashioned linux search command (that I still need to learn well). In R, `grep` returns actual index numbers for where it finds a value. You can use `value = TRUE` to return the *value* that contains the search term, rather than the index.
+
+`grepl` works similarly, but returns a T/F vector instead of numeric indices.
+
+You can use these tools to help index rows by matching or excluding terms.
+
+```{r}
+grep("Alameda", cameraData$intersection)
+grep("Alameda", cameraData$intersection, value = TRUE)
+
+## table will show us the breakdown of the T/F returns from grepl
+table(grepl("Alameda", cameraData$intersection))
+
+## and subsetting with grepl
+head(cameraData[!grepl("Alameda", cameraData$intersection), ])
+```
+
+### moar strings!
+The `stringr` package has some cool shit. `nchar()` tells you the number of characters in a string. `substr()` returns subsets of strings. `paste()` concatenates strings (defaults to space as separator), `paste0()` doesn't add spaces. `trimws()` removes unnecessary spaces (base package).
+
+```{r}
+nchar("Zac")
+substr("Zac Heacker", 1, 3)
+str_trim("Zac  ")
+trimws("Zac ")
+```
+
+
+### Text guidelines
+
+* variable names should be:
+     * lower case
+     * descriptive (diagnosis vs Dx)
+     * non-duplicate
+     * no `_`, `.`, or " "
+* variables that are character values should be
+     * usually made into factors
+     * descriptive (male/female vs 0/1)
+
+## Regular expressions
+This is all about searching for text based on a pattern rather than a specific text match.
+
+Literals are simply an exact string of text to be matched. Literals can be augmented by metacharacters to identify patterns as well as exact literal matches.
+
+`^i think` matches "i think" at the start of the line
+
+`morning$` matches "morning" at the end of the line
+
+`[Bb][Uu][Ss][Hh]` matches any sequence of a single instance of the bracketed values. So any `B/b` followed by any of `U/u`, followed by any of `S/s`, followed by any of `H/h`.
+
+`^[Ii=] am` matches any "I am" at the start of a line, regardless of the capitalization of "I"
+
+Brackets and dashes can specify ranges of characters. So `[0-9][a-zA-Z]` will match the start of any line that has any number ([0-9]) followed by any letter, regardless of capitalization.
+
+Inside of a bracket, the carrot matches things ***not*** in the character class of the bracket. So `[^?.]$` will match any line that ***does not*** end with `?` or `.`
+
+The `.` is a single character wildcard. So `.amp` would match lamp, camp, damp, but not clamp.
+
+The `|` is an "OR" operator that distinguishes between multiple alternatives. Multiple alternatives, and alternatives can be more regular expressions.
+
+the `?` indicates that an expression is optional. So `[Gg]eorge( [Ww]\.)? [Bb]ush` would match his name with or without the W in the middle. The `\` escapes the `.` after it so that the `.` is not treated as a metacharacter, but rather as a literal `.`.
+
+The `*` means "repeated any number of times" and the `+` means "at least 1 of them".
+
+Mkay, I'm kinda fucking sick of regex...
+
+## Working with Dates
+The `date()` function returns the date and time as a simple character value. `Sys.date()` returns a value of class `date`.
+
+You can reformat that date value with the `format()` function by passing it the format strings you want. (Look those up on the interwebs.) So `format(Sys.date(), "%a %b %d")` would return something like "Sun Jan 12".
+
+You can also use format strings to turn weird date objects into proper date-classed objects. You might have dates formatted as `1jan1960` which you could read with `as.Date(x, "%d%b%Y")`.
+
+The `lubridate` package does some cool shit, too. It can read in lots of pretty basic date formats with just a little hint. So the `ymd()` function is good at reading in dates following any number of standard "year-month-date" formats. The same goes for `mdy()` and `dmy()`.
+
+It can also do times with `ymd_hms()` or `dmy_smh()`.
+
+You can return a weekday (numerically) with `wday(date)` and you can get to the abbreviation for that day with `wday(date, label=TRUE)`.
+
+## Data Resources
+This is just to point you to some interesting data to get started, if you need some.
+
+### Open Government
+
+- UN [http://data.un.org](http://data.un.org)
+- US [http://www.data.gov](http://www.data.gov)
+- UK [http://data.gov.uk](http://data.gov.uk)
+- France [http://www.data.gouv.fr](http://www.data.gouv.fr)
+- Ghana [http://data.gov.gh](http://data.gov.gh)
+- Australia [http://data.gov.au](http://data.gov.au)
+- Germany [https://govdata.de](https://govdata.de)
+- Hong Kong [http://www.gov.hk/en/theme/psi/datasets](http://www.gov.hk/en/theme/psi/datasets)
+- Japan [http://www.data.go.jp](http://www.data.go.jp)
+- More [http://www.data.gov/opendatasites](http://www.data.gov/opendatasites)
+
+### Gapminder - Health and Development
+[http://www.gapminder.org](http://www.gapminder.org])
+
+### Fuck this
+Just go back to the lecture for the links. Other data sites include:
+
+- survey data
+- infochimps
+- kaggle
+- collections put together by professionals
+- stanford networks
+- UCI machine learning
+- etc.
+
+There are lots of other API sources you can access; again, see the lecture.
