@@ -1,0 +1,249 @@
+---
+title: "4. Exploratory Analysis - Week 1 Notes"
+output: html_notebook
+---
+
+# Exploradora!
+The first bit of this course is about installing R, so fuck that noise...
+
+## Lesson 1: Graphs
+
+### Principles of Analytic Graphs
+This is based on "Beautiful Evidence" by Edward Tufte. **(You need to buy this book, and most of his others.)**
+
+* Principle 1: show comparisons
+     * evidence for a hypothesis is always relative to another hypothesis
+     * always ask,"compared to what?"
+     * a box plot showing asthma symptom free days in the presence of an air cleaner is good, but it's better to show the symptom free days without the air cleaner for comparison
+* Principle 2: show causality/mechanism/explanation/systematic structure
+     * what is your causal framework for thinking about the question?
+     * ask the next question/explain the mechanism
+     * along with box plots for symptom free days, showing the box plots for the # of particles in the air helps make your case
+          * this shows the mechanism at work: air cleaner removes particles, particles agitate asthma, so air cleaners reduce asthma symptoms
+* Principle 3: show multivariate data
+     * put as much data on a plot as possible
+     * the world is multivariate, and we're trying to explain the world
+     * you can potentially see more useful relationships by not constraining yourself to 2 dimensions
+* Principle 4: integration of evidence
+     * integrate words/numbers/images/diagrams
+     * don't let the tools drive the analysis
+* Principle 5: describe and document the evidence with appropriate labels/scales/sources/etc.
+* Principle 6: content is king
+     * do good work, good analysis, then a good presentation. Good presentation won't save shitty work
+     
+### Exploratory graphs
+Exploratory graphics are those that you use to personally understand the data better, rather than those you use to present findings. These graphs are used to:
+
+* understand the data properties
+* find patterns in the data
+* suggest modeling strategies
+* debug analysis
+* communicate results (informally)
+
+Some characteristics of exploratory graphs:
+
+* they're made pretty quickly
+* there are lots of them
+* they're used for personal understanding
+* they're ugly, get cleaned up later
+* they use color/size for information
+
+#### Simple summaries of data
+One dimensional summaries:
+
+* 5 (or 6) number summary
+     * not really a plot, just a few key statistics about some data
+* boxplot
+     * halfway between the 5# summary and a histogram
+* histogram
+     * shows the shape of the distribution
+     * put a "rug" underneath to show 1D density
+     * you can futz with the bin size
+* density plot
+* barplot
+     * show some counts by category
+     
+Two dimensional summaries:
+
+* small multiples; multiple/overlayed 1D plots (lattice/ggplot2)
+* scatterplots
+* smooth scatterplots
+
+More than 2 dimensions:
+
+* small multiples; multiple overlated 2D plots (coplots)
+* use color/size/shape to add dimensions
+* spinning plots
+* actual 3D plots (basically useless)
+
+You can use multiple 1D visualizations to easily examine 2 dimensions. This would be like having 2 boxplots (or more) for 2 (or more) categories. You could just do multiple histograms, etc.
+
+You could also do a scatterplot. This is best for 2 continuous variables and lots of "identical" data points. You could add color/shape to differentiate categories in the plot.
+
+## Lesson 2: plotting
+R has developed 3 plotting systems over time. They're separate and independent and cannot be used together. Let's elaborate.
+
+### The base plotting system
+Uses the 'artist's palette' model; you start with a blank canvas and build up from there. You start with the `plot` function, or something similar, and use additional functions to add/modify the result (`text`, `lines`, `points`, `axis`).
+
+This method is kind of a pain in the ass. It's sort of intuitive, but it's just a string of R commands. You have control over everything, but that means you have to control everything, and that's kinda miserable. Learn one of the others...
+
+### The lattice system
+Plots are created with a single command, but you can pass tons of stuff to it. It's good for small multiples, automatically handles some formatting bullshit for you. If your data matches up with the assumptions/style of the lattice method, then you can get a bunch of shit on paper quickly. Might be good for lots of exploratory stuff.
+
+It can be awkward to do everything in a single function call, and formatting can be a PITA, and the plots are static and immutable.
+
+### The ggplot2 system
+Based on the "Grammar of Graphics." **Another book you absolutely have to buy.** It splits the difference between base and lattice methods. Automatically deals with spacing and some formatting bullshit, but also lets you add to a plot to annotate it. Sort of just better than lattice. Basically, it makes a lot of default choices for you, but you can still customize it all to hell.
+
+## Base plotting system
+The base system is comprised of the `graphics` and `grDevices` packages. `graphics` includes `plot`, `hist`, `boxplot`, and many others. `grDevices` contains code to implement the various graphics devices like x11, pdf, postscript, png, etc.
+
+Plotting requires many considerations:
+
+* where will it live? screen? file?
+* how will it be used?
+     * temporary on screen?
+     * in a browser?
+     * printed?
+* how many data points?
+* do you need dynamics resizing?
+
+Base plotting is done via successive commands, so it's kind of like the thought process. Start with basic plot. Run command. Think of something to add. Run command.
+
+First you initialize a new plot. Then you annotate it. Calling `plot(x, y)` or `hist(x)` will open a graphics device if you don't have one open, and draw a new plot on it. There are tons of defaults that it will go with, and you can fuck with those parameters to customize shit. You can find info about those parameters at `?par`.
+
+Here are some of the most basic parameters:
+
+- `pch`: plotting symbol (open circle)
+- `lty`: line type, dash, dot, (solid)
+- `lwd`: line width
+- `col`: color (black)
+- `xlab`: string for x-axis label
+- `ylab`: string for y-axis label
+
+The `par()` function sets the graphics defaults for an R session. These choices affect all plots in the session, and can be overridden at the function call.
+     
+- `las`: orientation of the axis labels
+- `bg`: background color
+- `mar`: margin size
+- `oma`: outer margin size (default = 0, all sides)
+- `mfrow`: number of plots per row, col (plots are filled row-wise)
+- `mfcol`: number of plots per row, col (plots are filled col-wise)
+
+Some base plotting functions:
+     
+- `plot`: makes a scatterplot, or maybe something else
+- `lines`: connects dots
+- `points`: adds dots
+- `text`: adds text labels at x, y coordinates
+- `title`: handles all titles (axis, plot, whatev)
+- `mtext`: adds text to margins
+- `axis`: does axis ticks/labels
+
+There's a lot going on here that I don't understand. He's using the `with()` function, and I have no fucking idea what that thing does. I'm kind of planning on glossing over this stuff until I get to ggplot2. Hopefully those lectures will be more comprehensive, and I'm planning on using ggplot2 anyways. Here's to hoping this shit makes more sense later...
+
+#### Base plotting demo
+This is going to be a basic demonstration of the standard plot system. We'll start with a basic histogram on random data:
+
+```{r histo}
+x <- rnorm(100)
+hist(x)
+```
+
+This gives us a basic histogram with the default options.
+
+Now we'll plot x and y. Note that R uses the plot window that's already open.
+
+```{r plotxy}
+y <- rnorm(100)
+plot(x, y)
+```
+
+This results in a scatterplot with some basic options chosen by default. You can adjust the margins with `par(mar = c(4, 4, 2, 2))` to affect the bottom, left, top, and right margins, respectively. You'll need to call `plot(x, y)` again to render the changes.
+
+You can change the point symbols (from open circle) by adding the `pch = 4` argument to `plot()`. There are loads of symbols, look up their reference numbers. `example(points)` has a chart.
+
+In the base system, you call the `plot()` function to get things started, and amend the plot by calling additional commands afterward. So you might then call `title("Fuck You")` to add a title to the plot. `text(-2, -2, "label")` will add a label to a specific coordinate. `legend("topleft", legend = "Data", pch = 20)` adds a useless legend. You can add a trend by first fitting a model with `fit <- lm(y ~ x)` and then using `abline(fit)` to display it on the plot.
+
+Another important note: objects are rendered on the plot in layers, and they are independent of other objects of the same type. This means that adding 2 titles to a chart will display 2 titles on top of one another in a garbled mess. Don't do this. If you have to make changes, you have to start over and get it all right the first time. Script this shit.
+
+Let's do a quick example of a plot with some options:
+
+```{r plotline}
+x <- rnorm(100)
+y <- rnorm(100)
+plot(x, y)#, xlab = "weight", ylab = "height", main = "scatterplot", pch = 20)
+# legend("topright", legend = "individuals", pch = 20)
+fit <- lm(y ~ x)
+abline(fit, lwd = 3, col = "red")
+```
+---
+What about multiple graphs. You can add space for new plots with the `par(mfrow)` and `par(mfcol)` functions. Let's stack 2 plots up vertically and mess around with them.
+
+```{r multipass}
+x <- rnorm(100)
+y <- rnorm(100)
+z <- rpois(100, 1)
+par(mfrow = c(2, 1))
+plot(x, y, pch = 20)
+plot(x, z, pch = 20)
+```
+
+I believe that the `par(mar)` function will act on each plot individually in the above scenario.
+
+There's also the `points()` function. Let's create some data, generate some levels (male/female) with the `gl()` function, and plot some points. This method allows you to sequentially add different groups of data to a plot, and to add different arguments/options to each group.
+
+```{r plotpoints}
+x <- rnorm(100)
+y <- x + rnorm(100)
+g <- gl(2, 50, labels = c("male", "female"))
+plot(x, y, type = "n")
+points(x[g == "male"], y[g == "male"], col = "green")
+points(x[g == "female"], y[g == "female"], col = "blue")
+```
+
+### Graphics Devices
+There are different kinds of graphics devices; these are where your plot appears, and the plot must be **sent** to the device. There are screen devices and multiple types of file devices (for things like .png, .jpg, .pdf, and vector graphics). But the screen is the most common device.
+
+Usually you want to use the screen, unless the graph is meant for reproduction or consumption by third parties. Then a file device is probably more appropriate.
+
+#### How does a plot get created?
+One way is that you call a plot function like `plot`, `xyplot`, or `qplot` and the plot shows up on the screen device. You annotate and enjoy.
+
+The other way is mostly for file devices. You must:
+1. explicitly launch the graphics device
+2. call the plotting function to make a plot (it will not appear because you're using a file device)
+3. annotate as necessary
+4. explicitly close the graphics device with `dev.off()` (this is important!)
+
+Here's an example:
+
+```{r plotpdf, eval=FALSE}
+pdf(file = "./path/to/file.pdf")
+with(faithful, plot(eruptions, waiting))
+title(main = "Old Faithful Whatever")
+dev.off()
+```
+
+#### Vectors and Bitmaps
+Common vector formats are pdf, svg (XML based scalable vector graphics; supports animation and interactivity; good for web), win.metafile, and postscript (but those last two are kinda worthless). Vector types can be larger files and aren't great for plots with shit-loads of data in them.
+
+Common bitmap formats are png, jpeg, tiff, bmp.
+
+- png is good for lines and solid colors, good for tons of points, doens't resize well
+- jpeg is good for photographs, tons of points, not great for line drawings, doesn't resize well
+- tiff is another one?
+- bmp is a native windows thing, hence, avoid it
+
+#### Multiple Graphics Devices
+It's possible to open multiple devices, but plotting can only happen on 1 at a time. You can find the active device with `dev.cur()` and you can change the active device with `dev.set(<integer>)`. Every device is assigned an integer >= 2.
+
+You can also copy a plot to another device to basically save a plot as a file. The main function for this is `dev.copy()`, but there's a specific version `dev.copy2pdf()` for copying to a .pdf file.
+
+```{r copyplot, eval=FALSE}
+with(faithful, plot(eruptions, waiting))
+title(main = "Whatevs")
+dev.copy(png, file = "./path/to/file.png")
+dev.off()
+```
