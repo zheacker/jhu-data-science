@@ -10,4 +10,7 @@ This course is just some basic theory about data science and some irrelevant pra
 ## Course 2: R Programming
 This course is a brief into to R, RStudio, and the basic objects and functions used in data analysis.
 
+## Course 3: Getting & Cleaning Data
+This course covers reshape2, dplyr, etc., the best dataset manipulation tools.
+
 Additional courses will be posted as they're completed.
