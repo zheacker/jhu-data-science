@@ -2,6 +2,7 @@
 ## this list should include all packages required for the johns hopkins data science specialization
 
 toInstall <- c(
+     "boot",
      "car",
      "ezknitr",
      "formatR",
