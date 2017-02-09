@@ -1,0 +1,128 @@
+---
+title: "4. Exploratory Analysis - Week 4 Assignment"
+output: html_notebook
+---
+
+```{r}
+knitr::opts_chunk$set(fig.width = 12)
+```
+
+# The Dataset
+We're working with more EPA data in this assignment. [The dataset](https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2FNEI_data.zip) comes from the coursera c4w4 website. There are 2 .rds files in the zip. You can read them in with `readRDS()`. We'll start with installing and loading some packages. Here's what I think I need for this project:
+
+* dplyr
+* ggplot2
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+
+## setup URL and path variables for this data
+zipurl <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2FNEI_data.zip"
+datapath <- "./data/assignment"
+zippath <- paste0(datapath, "/temp.zip")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath, recursive = TRUE)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!length(dir(datapath)) > 0) {
+     if(!file.exists(zippath)) {
+          download.file(zipurl, destfile = zippath)
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Downloaded & extracted data file")
+     } else {
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Found .zip, extracted")
+     }
+} else {
+     print("Found data, ready to go")
+}
+```
+
+Now we can load the data up:
+
+```{r loaddata, cache=TRUE}
+filelist <- paste0(datapath, "/", list.files(datapath))
+scc <- readRDS(filelist[1])
+nei <- readRDS(filelist[2])
+```
+
+Mkay, so this assignment asks me to make a single plot to answer each question. Sometimes it asks me to use the base plotting system, but fuck that noise, I'm using ggplot2. So let's start by listing out the features in our data files:
+
+* NEI - summarySCC_PM25.rds: this file contains a data frame with all of the PM2.5 emissions data for 1999, 2002, 2005, and 2008. It has these columns:
+  * fips - a 5-digit number (as a string) indicating the US county
+  * SCC - the ID string for each source
+  * Pollutant - pollutant name (as string)
+  * Emissions - Amount of PM2.5 emitted, in tons
+  * type - the type of source (point, non-point, on road, non road)
+  * year - year
+* SCC - Source_Classification_Code.rds: this file maps the SCC string in the NEI dataset to the actual names of the PM2.5 sources.
+
+So let's dive in.
+
+## Question 1
+Have total emissions of PM2.5 decreased in the US from 1999 to 2008? Make a plot showing the total PM2.5 emissions from all sources for each of the years 1999, 2002, 2005, and 2008.
+
+```{r plotq1}
+q1ds <- nei %>% group_by(year) %>% summarise(E.Total = sum(Emissions))
+plot(q1ds$year, q1ds$E.Total, type = "b")
+```
+
+## Question 2
+Have total emissions from PM2.5 decreased in Baltimore City, Maryland (fips = 24510) from 1999 to 2008?
+
+```{r plotq2}
+q2ds <- nei %>% filter(fips == "24510") %>% group_by(year) %>% summarise(E.Total = sum(Emissions))
+plot(q2ds$year, q2ds$E.Total, type = "b")
+```
+
+## Question 3
+Of the 4 types of sources indicated by the `type` feature of the `nei` dataset, which of these 4 sources have seen decreases in emissions from 1999-2008 in Baltimore City? Which have seen increases?
+
+```{r plotq3}
+q3ds <- nei %>% filter(fips == "24510") %>% group_by(year, type) %>% summarise(E.Total = sum(Emissions))
+ggplot(q3ds, aes(x = year, y = E.Total, color = type)) + geom_point() + geom_line()
+```
+
+## Question 4
+Across the United States, how have emissions from coal combustion-related sources changed from 1999–2008?
+
+```{r plotq4}
+sectors <- levels(scc$EI.Sector)[grep("(c|C)oal", levels(scc$EI.Sector))]
+sccids <- scc %>% filter(EI.Sector %in% sectors) %>% select(SCC)
+rj <- right_join(nei, sccids)
+q4ds <- rj %>% filter(!is.na(year)) %>% group_by(year) %>% summarise(Coal.Totals = sum(Emissions))
+ggplot(q4ds, aes(x = year, y = Coal.Totals)) + geom_point() + geom_line()
+```
+
+## Question 5
+How have emissions from motor vehicle sources changed from 1999–2008 in Baltimore City?
+
+```{r plotq5}
+sectors <- levels(scc$EI.Sector)[grep("(m|M)obile", levels(scc$EI.Sector))]
+sccids <- scc %>% filter(EI.Sector %in% sectors) %>% select(SCC)
+rj <- right_join(nei, sccids)
+q5ds <- rj %>% filter(!is.na(year) & fips == "24510") %>% group_by(year) %>% summarise(Mobile.Totals = sum(Emissions))
+ggplot(q5ds, aes(x = year, y = Mobile.Totals)) + geom_point() + geom_line()
+```
+
+## Question 6
+Compare emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles County, California (fips == "06037"). Which city has seen greater changes over time in motor vehicle emissions?
+
+```{r plotq6}
+sectors <- levels(scc$EI.Sector)[grep("(m|M)obile", levels(scc$EI.Sector))]
+sccids <- scc %>% filter(EI.Sector %in% sectors) %>% select(SCC)
+rj <- right_join(nei, sccids)
+q6ds <- rj %>% filter(!is.na(year) & fips %in% c("24510", "06037")) %>% group_by(year, fips) %>% summarise(Mobile.Totals = sum(Emissions))
+ggplot(q6ds, aes(x = year, y = Mobile.Totals, color = fips)) + geom_point() + geom_line()
+```
