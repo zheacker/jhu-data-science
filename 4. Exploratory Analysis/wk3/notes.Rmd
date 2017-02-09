@@ -347,9 +347,137 @@ plot(svd2$d^2/sum(svd2$d^2), xlab = "Column", ylab = "Prop. of variance explaine
 
 So we can see that the first feature (the split column pattern) accounts for over 50% of the variation in this dataset, and the 2nd pattern, while discernible, gets a little lost in the shuffle.
 
-### Missing values
+## Missing values
 SVD won't work on missing values, so you have to take care of them somehow. One way to do that is to impute them from the data you do have.
 
-#### Imputing
+### Imputing
 This example uses the `impute` package from bioconductor.org. It's currently not included in my badass data science docker image, so I'm going to take a break, drink some beer, rebuild the docker image, and then we'll get on with it.
+
+OK, we're back with a new docker image that includes `impute` from bioConductor.
+
+Now let's use the `impute.knn()` function to impute some missing values based on a k-nearest neighbors approach. Below we've plotted the 1st right singular vectors of the original data (left), and then the NA --> imputed data (right). You can see that they aren't entirely identical, but the imputing process appears to be pretty close.
+
+```{r}
+library(impute)
+dataMatrix4 <- dmorder
+dataMatrix4[sample(1:100, size = 40, replace = FALSE)] <- NA
+dataMatrix4 <- impute.knn(dataMatrix4)$data
+svd3 <- svd(scale(dmorder)); svd4 <- svd(scale(dataMatrix4))
+par(mfrow = c(1, 2)); plot(svd3$v[, 1], pch = 19); plot(svd4$v[, 1], pch = 19)
+```
+
+### The Face example
+So this is a pretty clear example of what SVD/PCA can do. We start with the face data:
+
+```{r}
+datapath <- "./data"
+facepath <- paste0(datapath, "/face.rda")
+faceurl <- "https://github.com/jtleek/dataanalysis/raw/master/week4/001clusteringExample/data/face.rda"
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+if(!file.exists(facepath)) {
+     download.file(url = faceurl, destfile = facepath)
+     print("face data downloaded and ready to go")
+} else {
+     print("face data present and ready to go")
+}
+```
+
+```{r}
+load(facepath)
+image(t(faceData)[, nrow(faceData):1])
+```
+
+It's low res, but there's definitely a face there. Now, let's perform SVD and take a look at the relative variance explained by the singular vectors:
+
+```{r}
+svdf <- svd(scale(faceData))
+plot(svdf$d^2/sum(svdf$d^2), pch = 19, xlab = "Singular Vector", ylab = "% Variance Explained")
+```
+
+So we can see that the first 4 or 5 vectors explain pretty much all of the data. This is an important point: there are a lot of features present here, but only 4 or 5 actually contribute significant amounts of new information. This is why SVD is used for data compression, and why PCA is used to identify *new* pseudo-features that lower dimensionality.
+
+So if those vectors contain most of the information, then we should be able to recreate the face image with only those vectors. It won't perfectly match the original image, but it will be close. Below, we have some images that were created exactly that way, using a variable number of singular vectors. The "1v" plot only uses the 1st singular vector, the "5v" uses the first 5, and the "10v" uses the first 10. Finally, there's the "OG" plot showing the original face.
+
+```{r}
+approx1 <- (svdf$u[, 1] * svdf$d[1]) %*% t(svdf$v[, 1])
+approx5 <- svdf$u[, 1:5] %*% diag(svdf$d[1:5]) %*% t(svdf$v[, 1:5])
+approx10<- svdf$u[, 1:10] %*% diag(svdf$d[1:10]) %*% t(svdf$v[, 1:10])
+```
+
+```{r}
+par(mfrow = c(2, 2))
+image(t(approx1)[, nrow(approx1):1], main = "1v")
+image(t(approx5)[, nrow(approx5):1], main = "5v")
+image(t(approx10)[, nrow(approx10):1], main = "10v")
+image(t(faceData)[, nrow(faceData):1], main = "OG")
+```
+
+We can see that the first vector may contain ~40% of the variance in the data, but that certainly doesn't recreate our entire face. However, at 5 we see the features pretty clearly. The jump to 10 vectors improves the image, but only very slightly. This is a form of lossy data compression.
+
+---
+
+# Colors in plots in R
+Well this is random as hell. Here we have 4 lectures about how to plot with colors. Whatever...
+
+The default colors for most plots in R are absolute garbage. But things are slowly improving and there are some nifty packages you can use to fix this.
+
+The default colors, in order, are black, red, green, then maybe cyan and magenta or something? They fucking suck. There are also some color palettes like heat and topo. The heat palette is monochromatic and ranges from red to white, while the topographical palette ranges from violet-blue through green, yellow, and white.
+
+## Color utilities in R
+The `grDevices` package has 2 functions, `colorRamp` and `colorRampPalette` which can help with colors. They basically take palettes of color and interpolate between them; they help you map between values and colors. Additionally, calling `colors()` simply lists the colors available to you.
+
+`colorRamp` takes a palette of colors and returns a function that takes values between 0 and 1.
+
+`colorRampPalette` does something similar, but the function it returns takes integer arguments and returns a vector of colors.
+
+```{r}
+#  colors are listed as RGB values
+pal <- colorRamp(c("red", "blue"))
+pal(0)
+pal(1)
+pal(0.5)
+pal(seq(0, 1, len = 10))
+```
+
+```{r}
+# colors are hexadecimal. 6 digits total, 2 for red, 2 for green, 2 for blue
+pal <- colorRampPalette(c("red", "yellow"))
+pal(2)
+pal(10)
+```
+
+## The `RColorBrewer` package
+This package provides a ton of good color palettes to use. Developed by and based on the research of Cynthia Brewer, Penn State. There are 3 types of palettes:
+
+* sequential: good for ordinal data, either continuous or discrete
+* diverging: good for data where the thing you really care about is deviation from a center
+* qualitative: good for non-ordinal data
+
+The package provides the `brewer.pal()` function which takes an integer (how many colors do you want?) and the palette name as a string. So let's install it, load it up, and have a look:
+
+```{r}
+library(RColorBrewer)
+
+cols <- brewer.pal(3, "BuGn")
+cols
+pal <- colorRampPalette(cols)
+image(volcano, col = pal(20))
+# the 20 is how many colors you want represented in the image
+```
+
+The `smoothScatter()` function (from `base`) also uses the `RColorBrewer` package. `smoothScatter` is used for plotting a lot of points on the screen; it converts individual dots into a density chart, and defaults to a white:blue palette.
+
+```{r}
+x <- rnorm(10000)
+y <- rnorm(10000)
+smoothScatter(x, y)
+```
 
