@@ -1,0 +1,110 @@
+---
+title: "5. Reproducible Research - Week 2 Assignment"
+output: html_notebook
+---
+
+# Downloading the File
+For this assignment, I'll be using the activity monitor dataset provided by the instructors. This is the Peer Graded Assignment in week 2 of Course 5 (Reproducible Research) of the John Hopkins Data Science Specialization on Coursera. There are several questions to answer for the assignment, and we'll get to those below. For now, let's just make sure we have the data file in the `5. Reproduce/wk2/data` directory.
+
+```{r download, echo = FALSE}
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+datapath <- "./data"
+zippath <- paste0(datapath, "/activity.zip")
+csvpath <- paste0(datapath, "/activity.csv")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+
+if(!file.exists(csvpath)) {
+     if(!file.exists(zippath)) {
+          download.file(url, destfile = zippath)
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Downloaded & extracted data file")
+     } else {
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Found .zip, extracted")
+     }
+} else {
+     print("Found data, ready to go")
+}
+```
+
+# Load the data and get into it
+
+## Load/preprocess data
+
+```{r readdata}
+alldata <- read.csv(csvpath)
+alldata$date <- as.Date(alldata$date)
+```
+
+## Steps per day
+
+```{r stephist}
+library(dplyr)
+library(ggplot2)
+daily <- alldata %>% group_by(date) %>% summarise(steps = sum(steps, na.rm = TRUE))
+daily
+qplot(daily$steps, bins = 20)
+```
+
+```{r meanmed}
+daily %>% summarise(meanSteps = mean(steps, na.rm = TRUE), medSteps = median(steps, na.rm = TRUE))
+```
+
+## Interval steps/daily activity pattern
+
+```{r tsplot}
+ts <- alldata %>% group_by(interval) %>% summarise(intSteps = mean(steps, na.rm = TRUE))
+qplot(ts$interval, ts$intSteps) + geom_line() + geom_smooth()
+```
+
+```{r maxint}
+ts[which.max(ts$intSteps), ]
+```
+
+## Fucking `NA`'s man...
+There are `r dim(alldata)[1]` rows in the `alldata` dataset. Of those, `r sum(complete.cases(alldata))` are complete cases, and `r dim(alldata)[1] - sum(complete.cases(alldata))` contain `NA`'s.
+
+We need to impute the `NA` values, so we'll
+
+```{r impute}
+daily <- daily %>% mutate(intAvg = steps/length(ts$interval))
+imputer <- mean(c(mean(daily$intAvg), mean(ts$intSteps)))
+nainds <- is.na(alldata$steps)
+imputed <- alldata
+imputed$steps[nainds] <- imputer
+```
+
+```{r imphist}
+daily <- imputed %>% group_by(date) %>% summarise(steps = sum(steps))
+daily
+qplot(daily$steps, bins = 20)
+```
+
+```{r newmeanmed}
+daily %>% summarise(meanSteps = mean(steps), medSteps = median(steps))
+```
+
+## Weekdays and weekends
+
+```{r newfactor}
+weektable <- data.frame(day = unique(weekdays(daily$date)), grp = c(rep("weekday", 5), rep("weekend", 2)))
+
+tmptbl <- imputed %>% mutate(day = weekdays(imputed$date))
+
+imputed <- left_join(tmptbl, weektable) %>% select(date, day, grp, interval, steps)
+```
+
+```{r facetplot}
+weekendsplit <- imputed %>% group_by(interval, grp) %>% summarise(steps = mean(steps))
+qplot(data = weekendsplit, interval, steps, facets = . ~ grp) + geom_line()
+```

@@ -1,0 +1,41 @@
+---
+title: "5. Reproducible Research - Week 2 Demo"
+output: html_notebook
+---
+
+My First R Markdown File
+========================
+
+This is my first Rmd file.  
+Here, we're going to load some data:
+
+```{r}
+library(datasets)
+data("airquality")
+summary(airquality)
+test = seq(1:5)
+```
+
+```{r}
+pairs(airquality)
+```
+
+Here's a regression model of ozone on wind, solar radiation, and temperature.
+
+```{r}
+require(stats)
+fit <- lm(Ozone ~ Wind + Solar.R + Temp, data = airquality)
+summary(fit)
+```
+
+You can also do basic markdown stuff like an unordered list:
+
+* list 1
+* list 2
+
+---
+The following is just a brief test to show that R objects persist across code chunks within an R markdown document.
+
+```{r}
+test[4]
+```
