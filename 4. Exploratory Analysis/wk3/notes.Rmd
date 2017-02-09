@@ -1,0 +1,492 @@
+---
+title: "4. Exploratory Analysis - Week 3 Notes"
+output: html_notebook
+---
+
+# Hierarchical Clustering
+This is the 'bread and butter' technique for visualizing high-dimensional data. Basically, clustering organizes things that are "close" into groups. But...
+
+* wtf does close mean, how is it defined?
+* how do we group things?
+* how do we visualize groups?
+* how do we interpret groups?
+
+Well, we'll answer all those questions here, specifically as they relate to hierarchical clustering.
+
+Hierarchical clustering is an agglomerative approach. You start with the data and let groups define themselves. You sort of find the 2 "closest" things, then put them together, then find the next closest, etc. But you have to be able to define the "distance" between 2 things in the first place, and you need a merging method, a way to represent those first 2 data points that you grouped as a new "merged point." The result is a tree showing how close things are to each other.
+
+The **most important aspect** of this method is the way you define close. You need a distance metric that makes sense for your problem, otherwise it's garbage in > garbage out. Some common distance/similarity measures are:
+
+* euclidean distance (for continuous)
+* correlation similarity (for continuous)
+* Manhattan distance (for binary)
+
+## Euclidean distance
+You put your points on a coordinate system of $N$ dimensions and you calculate the distance: `sqrt(((x2 - x1)^2) + ((y2 - y1)^2) + ... + ((z2 - z1)^2))`.
+
+$$\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2 + ... + (z_2 - z_1)^2}$$
+
+## Manhattan distance
+This is the "city block" distance where every step between 2 points must be along the direction of a unit vector (i.e. you can't move diagonally, only along the $X$ and $Y$ axes). The Manhattan distance is:
+
+$$abs(x_2 - x_1) + abs(y_2 - y_1) + ... + abs(z_2 - z_1)$$
+
+## Hierarchical example
+Here's some random data we'll cluster:
+```{r}
+set.seed(1234)
+par(mar = rep(4, 4))
+x <- rnorm(12, mean = rep(1:3, each = 4), sd = 0.2)
+y <- rnorm(12, mean = rep(c(1, 2, 1), each = 4), sd = 0.2)
+plot(x, y, col = "blue", pch = 19, cex = 2)
+text(x + 0.05, y + 0.05, labels = as.character(1:12))
+```
+
+Now we need to calculate the distance between every point with the `dist()` function in R. We can put the X coordinates in a column next to the Y coordinates, then call `dist()` on the data frame. This results in a lower-triangle matrix with all of the distances (`dist` defaults to Euclidean distance). Then we can plot the results of the `hclust()` function to get a dendrogram.
+
+```{r}
+df <- data.frame(x = x, y = y)
+distxy <- dist(df)
+hClustering <- hclust(distxy)
+plot(hClustering)                  
+```
+
+Note that the number of clusters is still not nailed down. Depending on what threshold you set for "closeness"--which would amount to setting a y-axis threshold on the above plot--you can change the definition of a "cluster."
+
+## Pretty dendrograms
+Here's a custom dendrogram function from the instructor that will label the points on the plot with their respective clusters.
+
+```{r}
+myplclust <- function(hclust, lab = hclust$labels, lab.col = rep(1, length(hclust$labels)), hang = 0.1, ...) {
+     y <- rep(hclust$height, 2)
+     x <- as.numeric(hclust$merge)
+     y <- y[which(x < 0)]
+     x <- x[which(x < 0)]
+     x <- abs(x)
+     y <- y[order(x)]
+     x <- x[order(x)]
+     plot(hclust, labels = FALSE, hang = hang, ...)
+     text(x = x, y = y[hclust$order] - (max(hclust$height) * hang), labels = lab[hclust$order], col = lab.col[hclust$order], srt = 90, adj = c(1, 0.5), xpd = NA, ...)
+}
+```
+
+And here's what it produces.
+
+```{r}
+myplclust(hClustering, lab = rep(1:3, each = 4), lab.col = rep(1:3, each = 4))
+```
+
+So how do you merge points? And how do you measure the distance between 2 groups of previously merged points? Well, one way is the average linkage method, which is basically the midpoint between 2 points. The other idea is called complete linkage. Let's explain:
+
+### Average linkage
+Average linkage means you take the midpoint between the 2 points that you're trying to merge. For the 1st pair of points that you merge, it's the literal midpoint. But now you have 1 new "merge point" (halfway between) instead of 2 points. Now, when you try to merge a third point, you take the midpoint between the merge point and it. This results in the distance between 2 clusters equating to the distance between the "centers of gravity" of the 2 clusters.
+
+### Complete linkage
+In this method, the distance between 2 clusters is defined as the distance between the 2 most distant points in those clusters.
+
+## `heatmap()`
+I'm not quite sure what this is good for, because I haven't seen it with real data, but the heatmap function can show you clustered groups within your dataset.
+
+```{r}
+set.seed(143)
+dataMatrix <- as.matrix(df)[sample(1:12), ]
+heatmap(dataMatrix)
+```
+
+This isn't a perfectly stable, thorough analytical strategy, but rather a good exploratory step that can give you some insight into your data. Clustering can be sensitive to lots of things, changes in a few points, changes in NA's, different distance/merging strategies, or even variable scaling.
+
+# K-means clustering
+K-means clustering is a way of partitioning data into a fixed number of clusters. It's an iterative, converging process wherein you:
+
+1. define clusters
+2. calculate the "centroid" of each cluster
+3. assign data to the closest centroid
+4. recalculate centroids
+
+It requires:
+
+* a defined distance metric
+* a preset number of clusters
+* an initial guess as to cluster centroids
+
+It produces:
+
+* a final estimate of cluster centroids
+* an assignment for all data to a cluster
+
+Let's dive in with a simple k-means example:
+
+```{r}
+set.seed(1234)
+par(mar = rep(4, 4))
+x <- rnorm(12, mean = rep(1:3, each = 4), sd = 0.2)
+y <- rnorm(12, mean = rep(c(1, 2, 1), each = 4), sd = 0.2)
+plot(x, y, col = "blue", pch = 19, cex = 2)
+text(x + 0.05, y + 0.05, labels = as.character(1:12))
+```
+
+So there's some random data with a few convenient clusters built in. Now let's start using `kmeans()`.
+
+```{r}
+df <- data.frame(x, y)
+agentk <- kmeans(df, centers = 3)
+names(agentk)
+agentk$cluster
+agentk$centers
+par(mar = rep(4, 4))
+plot(x, y, col = agentk$cluster, pch = 19, cex = 2)
+points(agentk$centers, col = 1:3, pch = 3, cex = 3, lwd = 3)
+```
+
+Now, we can use `heatmap` to view the data. The first image is a heatmap of the original data, and the 2nd image has ordered the rows by cluster; while not terribly informative here, this is a way of visualizing clusters in high dimensional data.
+
+```{r}
+set.seed(1234)
+dataMatrix <- as.matrix(df)[sample(1:12), ]
+brolin <- kmeans(dataMatrix, centers = 3)
+par(mfrow = c(1, 2), mar = c(2, 4, 0.1, 0.1))
+image(t(dataMatrix)[, nrow(dataMatrix):1], yaxt = "n")
+image(t(dataMatrix)[, order(brolin$cluster)], yaxt = "n")
+```
+
+Remember that kmeans is not deterministic and can be sensitive to change. Accordingly, it's usually a good idea to investigate various numbers of clusters and to run many iterations with different starting points. This can help to ensure that you're not observing an unstable aberration.
+
+# Principal component analysis (PCA) and singular value decomposition (SVD)
+These techniques are important to both the exploratory phase, as well as the more formal modeling phase. Let's start with random data:
+
+```{r}
+set.seed(12345)
+par(mar = rep(4, 4))
+dataMatrix <- matrix(rnorm(400), nrow = 40)
+image(1:10, 1:40, t(dataMatrix)[, nrow(dataMatrix):1])
+```
+
+Now, let's do a simple cluster.
+
+```{r}
+par(mar = rep(0.2, 4))
+heatmap(dataMatrix)
+```
+
+The data looks random, and that's good, because it is. There's no underlying pattern. Let's add one.
+
+```{r}
+set.seed(678910)
+for(i in 1:40) {
+     coinFlip <- rbinom(1, size = 1, prob = 0.5)
+     # if the coin is heads, add a common pattern to that row
+     if(coinFlip) {
+          dataMatrix[i, ] <- dataMatrix[i, ] + rep(c(0, 3), each = 5)
+     }
+}
+
+par(mar = rep(4, 4))
+image(1:10, 1:40, t(dataMatrix)[, nrow(dataMatrix):1])
+heatmap(dataMatrix)
+```
+
+This heatmap shows us that the columns are pretty different and easily separated via cluster analysis. This is because in our coin flip (above), on heads we added 0 to the 5 leftmost columns and added 3 to the 5 rightmost columns; we forced a pattern on some rows with a random coin flip, so our cluster/heatmap analysis can show us that pattern. But the rows don't appear to have clustered together, and that's because we applied our coin flip to the rows randomly.
+
+To demonstrate this, the following 3 heatmaps alter the properties of the coin flip in various ways. First, we make the "heads up" alterations more extreme: subtract 3 and add 6. Second, and in addition, we change the probability to 63%. Finally, and again in addition, we apply our permutations to columns differently (not split 50/50).
+
+```{r}
+set.seed(678910)
+dataMatrix1 <- matrix(rnorm(400), nrow = 40)
+for(i in 1:40) {
+     coinFlip <- rbinom(1, size = 1, prob = 0.5)
+     # if the coin is heads, add a common pattern to that row
+     if(coinFlip) {
+          dataMatrix1[i, ] <- dataMatrix1[i, ] + rep(c(-3, 6), each = 5)
+     }
+}
+
+# image(1:10, 1:40, t(dataMatrix)[, nrow(dataMatrix):1])
+
+set.seed(678910)
+dataMatrix2 <- matrix(rnorm(400), nrow = 40)
+for(i in 1:40) {
+     coinFlip <- rbinom(1, size = 1, prob = 0.63)
+     # if the coin is heads, add a common pattern to that row
+     if(coinFlip) {
+          dataMatrix2[i, ] <- dataMatrix2[i, ] + rep(c(-3, 6), each = 5)
+     }
+}
+
+set.seed(678910)
+dataMatrix3 <- matrix(rnorm(400), nrow = 40)
+for(i in 1:40) {
+     coinFlip <- rbinom(1, size = 1, prob = 0.5)
+     # if the coin is heads, add a common pattern to that row
+     if(coinFlip) {
+          dataMatrix3[i, ] <- dataMatrix3[i, ] + c(rep(-3, 7), rep(6, 3))
+     }
+}
+
+c1 <- hclust(dist(dataMatrix1))
+c2 <- hclust(dist(dataMatrix2))
+c3 <- hclust(dist(dataMatrix3))
+
+dm1 <- dataMatrix1[c1$order, ]
+dm2 <- dataMatrix2[c2$order, ]
+dm3 <- dataMatrix3[c3$order, ]
+
+par(mfrow = c(1, 3), mar = rep(4, 4))
+image(t(dm1)[, nrow(dm1):1])
+image(t(dm2)[, nrow(dm2):1])
+image(t(dm3)[, nrow(dm3):1])
+```
+
+We can also investigate our dataset (the original one, not the 3 permutations above) by examining the marginal means:
+
+```{r}
+hh <- hclust(dist(dataMatrix))
+dmorder <- dataMatrix[hh$order, ]
+par(mfrow = c(1, 3))
+image(t(dmorder)[, nrow(dmorder):1])
+plot(rowMeans(dmorder), 40:1, xlab = "Row Mean", ylab = "Row", pch = 19)
+plot(colMeans(dmorder), xlab = "Column", ylab = "Column Mean", pch = 19)
+```
+
+## Related problems
+There are a couple of important scenarios that are closely related, and for which clustering is a useful tool. Let's say you have a high-dimensional dataset, with maybe hundreds or thousands of variables.
+
+* First, you might want to find a new set of multivariate variables that are uncorrelated and explain as much variance as possible
+* Second, you might want to find a lower-rank matrix (one with fewer variables) that still explains the original data
+
+The first goal is a statistical one, and the second goal is about data compression. These goals can be solved with Principal Component Analysis methods as well as Singular Value Decomposition, respectively.
+
+## Singular value docomposition
+If you have a matrix where each row is an observation and each column is a feature, the SVD is a "matrix decomposition" $X = UDV^T$ where the columns of $U$ are orthogonal (left singular vectors), and the columns of $V$ are orthogonal (right singular vectors) and $D$ is a diagonal matrix (singular values).
+
+### A note about principal component analysis
+If you start with the same matrix as above, and scale all the variables (i.e. subtract the column mean from the column's values, then divide by the column's standard deviation), then the principal components are equal to the right singular vectors from SVD
+
+So I think that means that the $V$ matrix gives you your new features, and if that's correct, then the $U$ matrix (the left singular vectors) are likely the mapping function from the original features to the principal components. And the $D$ matrix (the singular values) might weight the new features?
+
+Anyway, this whole bit is about SVD...
+
+```{r}
+library(scales)
+svd1 <- svd(scale(dmorder))
+par(mfrow = c(1, 3))
+image(t(dmorder)[, nrow(dmorder):1])
+plot(svd1$u[, 1], 40:1, xlab = "Row", ylab = "First left singular vector", pch = 19)
+plot(svd1$v[, 1], xlab = "Column", ylab = "First right singular vector", pch = 19)
+```
+
+So now we've plotted the first left and first right singular vectors, and somehow those represent the row and column means of the dataset, respectively? I clearly don't know what these singular vectors are, and it doesn't seem like I'm going to get the full explanation here. Add linear algebra and matrix decomposition to the list of topics I desperately need to bone up on...
+
+You can also use the $D$ diagonal matrix to plot the "variance explained." The singular values in this matrix capture the amount of variance in the original dataset that is explained by this pseudo-feature (principal component). However, the scale is rather meaningless, so you can normalize the diagonal vector to show the % of variance explained by each feature. (Then Pareto chart them!?)
+
+```{r}
+par(mfrow = c(1, 2))
+plot(svd1$d, xlab = "Column", ylab = "Singular Value", pch = 19)
+plot(svd1$d^2/sum(svd1$d^2), xlab = "Column", ylab = "Prop. of variance explained", pch = 19)
+```
+
+So we can see here that around 40% of the variation of this dataset is explained by the first component. Now, let's make a matrix that is perfectly ordered. That is, every row is 0's on the left and 1's on the right.
+
+```{r}
+cMatrix <- dmorder*0
+for(i in 1:dim(dmorder)[1]){cMatrix[i,] <- rep(c(0, 1), each=5)}
+svd1 <- svd(cMatrix)
+par(mfrow = c(1, 3))
+image(t(cMatrix)[, nrow(cMatrix):1])
+plot(svd1$d, xlab = "Column", ylab = "Singular Value", pch = 19)
+plot(svd1$d^2/sum(svd1$d^2), xlab = "Column", ylab = "Prop. of variance explained", pch = 19)
+```
+
+Here we can see that there is only 1 feature involved in the variance of the dataset (namely, whether a point is in the left 5 columns or the right 5 columns). Nothing else is necessary to explain the data.
+
+Now let's add a second pattern:
+
+```{r}
+set.seed(678910)
+for(i in 1:40) {
+  coinFlip1 <- rbinom(1, size = 1, prob = 0.5)
+  coinFlip2 <- rbinom(1, size = 1, prob = 0.5)
+  if(coinFlip1) {
+    dataMatrix[i, ] <- dataMatrix[i, ] + rep(c(0, 5), each = 5)
+  }
+  if(coinFlip2) {
+    dataMatrix[i, ] <- dataMatrix[i, ] + rep(c(0, 5), 5)
+  }
+}
+hh <- hclust(dist(dataMatrix))
+dmorder <- dataMatrix[hh$order, ]
+```
+
+And here we can plot the heatmap and the true patterns:
+
+```{r}
+svd2 <- svd(scale(dmorder))
+par(mfrow = c(1, 3))
+image(t(dmorder)[, nrow(dmorder):1])
+plot(rep(c(0, 1), each = 5), pch = 19, xlab = "Column", ylab = "Pattern 1")
+plot(rep(c(0, 1), 5), pch = 19, xlab = "Column", ylab = "Pattern 2")
+```
+
+And now let's plot SVD and what it can learn about the dataset with no guidance:
+
+```{r}
+par(mfrow = c(1, 3))
+image(t(dmorder)[, nrow(dmorder):1])
+plot(svd2$v[, 1], pch = 19, xlab = "Column", ylab = "1st right singular vector")
+plot(svd2$v[, 2], pch = 19, xlab = "Column", ylab = "2nd right singular vector")
+```
+
+So it's messier than the absolute truth, but you can see some of the patterns emerging. There's a split between the left and right columns, and we can also see the alternating pattern taking shape.
+
+Now let's look at the variance explained:
+
+```{r}
+par(mfrow = c(1, 2))
+plot(svd2$d, xlab = "Column", ylab = "Singular Value", pch = 19)
+plot(svd2$d^2/sum(svd2$d^2), xlab = "Column", ylab = "Prop. of variance explained", pch = 19)
+```
+
+So we can see that the first feature (the split column pattern) accounts for over 50% of the variation in this dataset, and the 2nd pattern, while discernible, gets a little lost in the shuffle.
+
+## Missing values
+SVD won't work on missing values, so you have to take care of them somehow. One way to do that is to impute them from the data you do have.
+
+### Imputing
+This example uses the `impute` package from bioconductor.org. It's currently not included in my badass data science docker image, so I'm going to take a break, drink some beer, rebuild the docker image, and then we'll get on with it.
+
+OK, we're back with a new docker image that includes `impute` from bioConductor.
+
+Now let's use the `impute.knn()` function to impute some missing values based on a k-nearest neighbors approach. Below we've plotted the 1st right singular vectors of the original data (left), and then the NA --> imputed data (right). You can see that they aren't entirely identical, but the imputing process appears to be pretty close.
+
+```{r}
+library(impute)
+dataMatrix4 <- dmorder
+dataMatrix4[sample(1:100, size = 40, replace = FALSE)] <- NA
+dataMatrix4 <- impute.knn(dataMatrix4)$data
+svd3 <- svd(scale(dmorder)); svd4 <- svd(scale(dataMatrix4))
+par(mfrow = c(1, 2)); plot(svd3$v[, 1], pch = 19); plot(svd4$v[, 1], pch = 19)
+```
+
+### The Face example
+So this is a pretty clear example of what SVD/PCA can do. We start with the face data:
+
+```{r}
+datapath <- "./data"
+facepath <- paste0(datapath, "/face.rda")
+faceurl <- "https://github.com/jtleek/dataanalysis/raw/master/week4/001clusteringExample/data/face.rda"
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created data directory")
+} else {
+     print("data directory already exists")
+}
+
+if(!file.exists(facepath)) {
+     download.file(url = faceurl, destfile = facepath)
+     print("face data downloaded and ready to go")
+} else {
+     print("face data present and ready to go")
+}
+```
+
+```{r}
+load(facepath)
+image(t(faceData)[, nrow(faceData):1])
+```
+
+It's low res, but there's definitely a face there. Now, let's perform SVD and take a look at the relative variance explained by the singular vectors:
+
+```{r}
+svdf <- svd(scale(faceData))
+plot(svdf$d^2/sum(svdf$d^2), pch = 19, xlab = "Singular Vector", ylab = "% Variance Explained")
+```
+
+So we can see that the first 4 or 5 vectors explain pretty much all of the data. This is an important point: there are a lot of features present here, but only 4 or 5 actually contribute significant amounts of new information. This is why SVD is used for data compression, and why PCA is used to identify *new* pseudo-features that lower dimensional.
+
+So if those vectors contain most of the information, then we should be able to recreate the face image with only those vectors. It won't perfectly match the original image, but it will be close. Below, we have some images that were created exactly that way, using a variable number of singular vectors. The "1v" plot only uses the 1st singular vector, the "5v" uses the first 5, and the "10v" uses the first 10. Finally, there's the "OG" plot showing the original face.
+
+```{r}
+approx1 <- (svdf$u[, 1] * svdf$d[1]) %*% t(svdf$v[, 1])
+approx5 <- svdf$u[, 1:5] %*% diag(svdf$d[1:5]) %*% t(svdf$v[, 1:5])
+approx10<- svdf$u[, 1:10] %*% diag(svdf$d[1:10]) %*% t(svdf$v[, 1:10])
+```
+
+```{r}
+par(mfrow = c(2, 2))
+image(t(approx1)[, nrow(approx1):1], main = "1v")
+image(t(approx5)[, nrow(approx5):1], main = "5v")
+image(t(approx10)[, nrow(approx10):1], main = "10v")
+image(t(faceData)[, nrow(faceData):1], main = "OG")
+```
+
+We can see that the first vector may contain ~40% of the variance in the data, but that certainly doesn't recreate our entire face. However, at 5 we see the features pretty clearly. The jump to 10 vectors improves the image, but only very slightly. This is a form of lossy data compression.
+
+---
+
+# Colors in plots in R
+Well this is random as hell. Here we have 4 lectures about how to plot with colors. Whatever...
+
+The default colors for most plots in R are absolute garbage. But things are slowly improving and there are some nifty packages you can use to fix this.
+
+The default colors, in order, are black, red, green, then maybe cyan and magenta or something? They fucking suck. There are also some color palettes like heat and topo. The heat palette is monochromatic and ranges from red to white, while the topographical palette ranges from violet-blue through green, yellow, and white.
+
+## Color utilities in R
+The `grDevices` package has 2 functions, `colorRamp` and `colorRampPalette` which can help with colors. They basically take palettes of color and interpolate between them; they help you map between values and colors. Additionally, calling `colors()` simply lists the colors available to you.
+
+`colorRamp` takes a palette of colors and returns a function that takes values between 0 and 1.
+
+`colorRampPalette` does something similar, but the function it returns takes integer arguments and returns a vector of colors.
+
+```{r}
+#  colors are listed as RGB values
+pal <- colorRamp(c("red", "blue"))
+pal(0)
+pal(1)
+pal(0.5)
+pal(seq(0, 1, len = 10))
+```
+
+```{r}
+# colors are hexadecimal. 6 digits total, 2 for red, 2 for green, 2 for blue
+pal <- colorRampPalette(c("red", "yellow"))
+pal(2)
+pal(10)
+```
+
+### The `RColorBrewer` package
+This package provides a ton of good color palettes to use. Developed by and based on the research of Cynthia Brewer, Penn State. There are 3 types of palettes:
+
+* sequential: good for ordinal data, either continuous or discrete
+* diverging: good for data where the thing you really care about is deviation from a center
+* qualitative: good for non-ordinal data
+
+The package provides the `brewer.pal()` function which takes an integer (how many colors do you want?) and the palette name as a string. So let's install it, load it up, and have a look:
+
+```{r}
+library(RColorBrewer)
+
+cols <- brewer.pal(3, "BuGn")
+cols
+pal <- colorRampPalette(cols)
+image(volcano, col = pal(20))
+# the 20 is how many colors you want represented in the image
+```
+
+The `smoothScatter()` function (from `base`) also uses the `RColorBrewer` package. `smoothScatter` is used for plotting a lot of points on the screen; it converts individual dots into a density chart, and defaults to a white:blue palette.
+
+```{r}
+x <- rnorm(10000)
+y <- rnorm(10000)
+smoothScatter(x, y)
+```
+
+### Random color notes
+The `rgb` function can be used to produce any RGB proportions, and it can add transparency via the `alpha` argument. 0 is invisible, 1 is opaque. Here's an example of transparency.
+
+```{r}
+plot(x, y, pch = 19)
+plot(x, y, col = rgb(0, 0, 0, 0.2), pch = 19)
+```
+
+There is also the `colorspace` package. We don't get to know what it is. Exercise for the reader. Mkay.

@@ -1,0 +1,461 @@
+---
+title: "4. Exploratory Analysis - Week 4 Notes"
+output: html_notebook
+---
+
+# Exploratory Analysis Techniques
+The point of exploring the data is to create a kind of rough cut analysis that will inform your later efforts. I can help with:
+
+* Determining what questions the data can/cannot answer
+* Identifying key priorities and roads your analysis could go down
+
+## The dataset
+[This dataset](https://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones) is from the UCI Machine Learning repository and it is based on motion capture from the Samsung Galaxy smartphone. There's an updated version [here](http://archive.ics.uci.edu/ml/datasets/Smartphone-Based+Recognition+of+Human+Activities+and+Postural+Transitions), not sure yet which I should use; well, probably the first one, that's what the notes are based on...
+
+Actually, that first dataset is the exact same dataset from the final project in course 3. Getting and Cleaning Data. I'm having some trouble downloading the dataset from the above link from within R, and the dataset is actually tracked in git in the "3. Get Clean/project/data" directory. So instead of solving the download issues, we're just going to assume the data exists in that directory and read from there. Problem solved. Sort of.
+
+```{r}
+library(dplyr)
+## setup URL and path variables for this data
+zipurl <- "https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip"
+datapath <- "./data/notes"
+zippath <- paste0(datapath, "/temp.zip")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath, recursive = TRUE)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!length(dir(datapath)) > 0) {
+     if(!file.exists(zippath)) {
+          download.file(zipurl, destfile = zippath)
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Downloaded & extracted data file")
+     } else {
+          unzip(zippath, exdir = datapath)
+          file.remove(zippath)
+          print("Found .zip, extracted")
+     }
+} else {
+     print("Found data, ready to go")
+}
+```
+
+## Let's get started
+We start by loading up the data, then having a look at it.
+
+```{r}
+datapath <- "./data/notes/UCI HAR Dataset/"
+# testpath <- paste0(datapath, "test/")
+trainpath <- paste0(datapath, "train/")
+
+datalist <- list.files(datapath)
+# testlist <- list.files(testpath)[2:4]
+trainlist <- list.files(trainpath)[2:4]
+
+## Read in the necessary files
+subjects <- read.table(paste0(trainpath, trainlist[1]))
+
+samsungData <- read.table(paste0(trainpath, trainlist[2]))
+response <- read.table(paste0(trainpath, trainlist[3]))
+
+activityLabels <- read.table(paste0(datapath, datalist[1]))
+features <- read.table(paste0(datapath, datalist[3]))
+```
+
+```{r}
+names(samsungData) <- as.character(features[[2]])
+subjects <- rename(subjects, subject = V1)
+samsungData$subject <- subjects[[1]]
+response <- left_join(response, activityLabels)[, 2]
+samsungData$activity <- as.character(response)
+names(samsungData)[1:12]
+table(samsungData$activity)
+table(samsungData$subject, samsungData$activity)
+```
+
+Now we want to check out the average acceleration for the first subject. To start with, we'll make the `activity` feature a factor variable. Then we plot the first 2 features, which are the mean body accelerations in the X and Y axes.
+
+```{r}
+par(mfrow = c(1, 2)) # , mar = c(5, 4, 1, 1))
+samsungData <- transform(samsungData, activity = factor(activity))
+sub1 <- subset(samsungData, subject == 1)
+plot(sub1[, 1], col = sub1$activity, ylab = names(sub1)[1])
+plot(sub1[, 2], col = sub1$activity, ylab = names(sub1)[2])
+legend("bottomright", legend = unique(sub1$activity), col = unique(sub1$activity), pch = 1)
+```
+
+We can see that for the mean body acceleration - Y axis feature, very little appears to be going on. Remember, this is all 1 subject, each row is a summary of data collected while doing 1 activity; this aggregate measure is the average Y-axis acceleration while performing that activity.
+
+```{r}
+myplclust <- function(hclust, lab = hclust$labels, lab.col = rep(1, length(hclust$labels)), hang = 0.1, ...) {
+     y <- rep(hclust$height, 2)
+     x <- as.numeric(hclust$merge)
+     y <- y[which(x < 0)]
+     x <- x[which(x < 0)]
+     x <- abs(x)
+     y <- y[order(x)]
+     x <- x[order(x)]
+     plot(hclust, labels = FALSE, hang = hang, ...)
+     text(x = x, y = y[hclust$order] - (max(hclust$height) * hang), labels = lab[hclust$order], col = lab.col[hclust$order], srt = 90, adj = c(1, 0.5), xpd = NA, ...)
+}
+```
+
+Now we can try to cluster with the fancy cluster plot from week 3's lecture. Here we'll use the 1st 3 columns of the dataset, which are the mean accelerations in the X, Y, and Z directions.
+
+```{r}
+distanceMatrix <- dist(sub1[, 1:3])
+hclustering <- hclust(distanceMatrix)
+myplclust(hclustering, lab.col = unclass(sub1$activity))
+```
+
+That doesn't really tell us anything interesting. No clear groups, colors are all jumbled together. So let's have a look at the maximum values instead. Below are the plots for the maximum accelerations in the X and Y directions, colored by activity.
+
+
+```{r}
+par(mfrow = c(1, 2))
+plot(sub1[, 10], pch = 19, col = sub1$activity, ylab = names(sub1)[10])
+plot(sub1[, 11], pch = 19, col = sub1$activity, ylab = names(sub1)[11])
+```
+
+Interesting. It looks like there are some legit clusters there. Let's see a dendrogram:
+
+```{r}
+distanceMatrix <- dist(sub1[, 10:12])
+hclustering <- hclust(distanceMatrix)
+myplclust(hclustering, lab.col = unclass(sub1$activity))
+```
+
+So there seem to be a few easy breaks between some of these clusters. The most obvious appears to be a dinstinction between moving and non-moving activities. So let's perform a singular value decomposition and really dig into how we can use that method to identify and categorize these 6 activities.
+
+### A theoretical aside on SVD
+So what the fuck is going on with SVD? This is a matrix decomposition method, or matrix factorization, if you like. Start with your matrix `A`; for us, that's our matrix `sub1`. `A` is an `n x d` matrix, that is, `n` data points in a `d` dimensional space. Here, `n = 347` and `d = 561`. SVD lets us translate the basis of this matrix `A` into a new basis. This new basis is a `k`-dimensional subspace that is the best approximation of the original space. The factorization yields 3 matrices: `U`, `D`, and `V` (although `t(V)` is the technical result).
+
+`U` is an `n x d` matrix whose columns express the factor weights for the rows of `A`.
+
+`D` is a diagonal matrix of the singular values. Its dimensions are `min(n, d) x min(n, d)` ( I **think**). Actually, this isn't quite true; but I don't feel like getting too far into a rank/nullity discussion right now. For now, let's just say its rank is `r` is less-than-or-equal-to `min(n, d)`.
+
+`t(V)` is a `n x d` matrix. `V` is the output of the `svd()` function, so the dimensions of `V` are `d x n`, and the columns of `V` express the factor weights for the columns of `A`.
+
+#### WTF are LSVs?
+Left singular vectors are the columns of the `U` matrix in our singular value decomposition. There's one column for every row of the original matrix `A`.
+
+#### Then WTF are RSVs?
+Right singular vectors are the columns of the `V^T` matrix in our singular value decomposition. There's one column here for every column of the original matrix `A`.
+
+---
+
+Mkay, back to what we're doing. Here we plot the first 2 LSVs, colored by activity.
+
+```{r}
+svd1 <- svd(scale(sub1[, -c(562, 563)]))
+par(mfrow = c(1, 2))
+plot(svd1$u[, 1], col = sub1$activity, pch = 19)
+plot(svd1$u[, 2], col = sub1$activity, pch = 19)
+```
+
+The 1st LSV appears to be separating the moving activities from the non-moving ones (they're splitting around the y = 0 line). The 2nd LSV looks like it's starting to separate out the pink "walking upstairs" category.
+
+Now let's have a look at the RSVs. Here we plot the 1st, 2nd, and 300th RSVs. Just cause. But we're going to focus on that 2nd RSV. We can use `which.max(svd1$v[, 2])` to identify the index of RSV-2 that is the strongest (is strongest the right word?). Remember, a column of `V` is a representation of every feature of the data (561 in this dataset); that is, `length(V[, i]) = 561`. The values in the `i`th column of `V` represent the 'data capture' (?) by this `i`th singular vector, and the elements of the column are associated with each of the 561 original features. So finding the maximum of `svd1$v[, 2]` is identifying the original feature that explains the most data at this 2nd singular value calculation. The SVD is actually just an iterative application of the 1-dimensional optimization problem, so you are successively finding the singular vector that most completely defines the data, jotting down that `i`th singular vector, then asking for the next most explanatory singular vector.
+
+Once we ID the original feature that is most helpful at rank 2, we can add that feature to our clustering model and plot a new dendrogram.
+
+```{r maxcontrib}
+plot(svd1$v[, 1], pch = 19)
+plot(svd1$v[, 2], pch = 19)
+plot(svd1$v[, 300], pch = 19)
+maxContrib <- which.max(svd1$v[, 2])
+distanceMatrix <- dist(sub1[, c(10:12, maxContrib)])
+hclustering <- hclust(distanceMatrix)
+myplclust(hclustering, lab.col = unclass(sub1$activity))
+```
+
+Now this is kinda awesome. We clustered on 4 features, the maximum accelerations plus the `max(svd1$v[, 2])`, and that's what we got. We were able to pretty handily identify 3 of the 6 groups, although the 3 more sedentary activities are still pretty jumbled together. Still, kinda badass.
+
+For kicks and giggles, let's just use every feature and see what happens...
+
+```{r allfeat}
+distanceMatrix <- dist(sub1[, 1:561])
+hclustering <- hclust(distanceMatrix)
+myplclust(hclustering, lab.col = unclass(sub1$activity))
+```
+
+## K-means clustering
+Let's do a quick k-means run:
+
+```{r kmeans, cache=FALSE}
+kClust <- kmeans(sub1[, -c(562, 563)], centers = 6)
+table(kClust$cluster, sub1$activity)
+```
+
+This shows us our 6 clusters in the rows. It's important to remember that k-means requires initialization of the clusters, and it defaults to random. So you should use the `nstart` argument to force it to try several initializations so you don't get stuck in a sub-optimal one-off solution.
+
+Below are some tables showing activity clusters with `nstart = 1 | 100`.
+
+```{r kstart1, cache=FALSE}
+kClust <- kmeans(sub1[, -c(562, 563)], centers = 6, nstart = 1)
+table(kClust$cluster, sub1$activity)
+```
+
+```{r kstart100, cache=FALSE}
+kClust <- kmeans(sub1[, -c(562, 563)], centers = 6, nstart = 100)
+table(kClust$cluster, sub1$activity)
+```
+
+The following plot shows us a particular cluster's center location in the 500+ dimensional space. We'll only plot the first 10 features to make our point, though.
+
+```{r kplotfeat, fig.height=5, fig.width=8}
+plot(kClust$center[1, 1:10], pch = 19, ylab = "Cluster Center", xlab = "")
+```
+
+I'm not quite sure what this is supposed to be telling me...
+
+# Holy fuck, that was only half...
+Now we're going to go through an entire exploratory data analysis process. This is the whole chimichanga.
+
+## Asking the question
+We're going to check out some EPA air pollution data from 1999 and 2012 (just those years, not the range). The basic question: are the levels of particulate matter in the air (which the Clean Air Act was supposed to govern) generally lower in 2012 than they were in 1999?
+
+## Getting the data
+The EPA's Air Quality System provides data [here](http://aqsdr1.epa.gov/aqsweb/aqstmp/airdata/download_files.html). We just need to grab the .zip files for 1999 and 2012 and get them in the right place.
+
+Mkay, scratch that. Of course, the EPA website has changed, their data structure has changed, everything has changed. So instead, we go to the course's github account and pull the data from [there](https://github.com/DataScienceSpecialization/courses/raw/master/04_ExploratoryAnalysis/CaseStudy/pm25_data.zip).
+
+```{r dlaqs, echo=FALSE}
+url <- "https://github.com/DataScienceSpecialization/courses/raw/master/04_ExploratoryAnalysis/CaseStudy/pm25_data.zip"
+datapath <- "./data/notes/mk2"
+zippath <- paste0(datapath, "/temp.zip")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath, recursive = TRUE)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!length(dir(datapath)) > 0) {
+     download.file(url, destfile = zippath)
+     unzip(zippath, exdir = datapath)
+     file.remove(zippath)
+     print("Downloaded & extracted data file")
+} else {
+     print("Found data, ready to go")
+}
+```
+
+And now, we load it up and read it in:
+
+```{r setpaths}
+pmdatapath <- list.dirs(datapath, recursive = FALSE)
+filelist <- paste0(pmdatapath, "/", list.files(pmdatapath))
+```
+
+First, let's just `readLines()` to see the actual text:
+
+```{r rlines}
+readLines(filelist[1], n = 10)
+```
+
+Those commented lines are headers for the 2 different types of records we could see, RD or RC records. Let's search both files and see if there are any RC records present:
+
+```{r findrc}
+grep("^RC", readLines(filelist[1]))
+grep("^RC", readLines(filelist[2]))
+```
+
+Nope, no RC records. So that means we can use the header for RD records. But we'll ignore the #'d lines when we read the data, then add them in as proper data frame names.
+
+```{r readdata}
+pm1999 <- read.table(file = filelist[1], comment.char = "#", sep = "|", header = FALSE, na.strings = "")
+pm2012 <- read.table(file = filelist[2], comment.char = "#", sep = "|", header = FALSE, na.strings = "")
+dim(pm1999)
+dim(pm2012)
+head(pm1999)
+cnames1 <- readLines(filelist[1], n = 1)
+cnames1 <- strsplit(cnames1, "|", fixed = TRUE)
+colnames(pm1999) <- make.names(cnames1[[1]])
+cnames2 <- readLines(filelist[2], n = 1)
+cnames2 <- strsplit(cnames2, "|", fixed = TRUE)
+colnames(pm2012) <- make.names(cnames2[[1]])
+```
+
+## Explore!
+
+OK, now that we have the data in hand, and we've seen a bit of it, let's examine the `Sample.Value` column a bit. Below we run the basic examine functions, then we find out that about 11% of this column is `NA`.
+
+```{r seenas}
+x1 <- pm1999$Sample.Value
+str(x1)
+summary(x1)
+mean(is.na(x1))
+```
+
+Whether or not that's `NA`'s are a big problem depends on what kind of question you're trying to answer. If every single value is pretty important, then they can be a huge problem. We're trying to find out if the sample value has gone down, so we're looking at big trends; individual `NA`'s might not be a big deal. But 11% is not nothing...
+
+Now we'll do the same for the 2012 data. We'll see that only 5% of this column is `NA`'s.
+
+```{r seenas2012}
+x2 <- pm2012$Sample.Value
+str(x2)
+summary(x2)
+mean(is.na(x2))
+```
+
+If we look at the summaries for each column, we can see that the mean is indeed lower for 2012. But the minimum is negative, which is weird. It turns out that `r mean(x2 < 0, na.rm = TRUE)` of the data is negative, `r sum(x2 < 0, na.rm = TRUE)` total values.
+
+Now let's look at the boxplots.
+
+```{r boxes, fig.width=8}
+boxplot(x1, x2)
+```
+
+The mean does go down, but we've got some major extremes in 2012. Let's box the logs, that always helps.
+
+(**But seriously, WTF IS A GODDAMN LOGARITHM!?**)
+
+```{r logboxes, fig.width=8}
+boxplot(log10(x1), log10(x2))
+```
+
+Now about those negatives... We know they're there, we know how many there are, but let's dig in a bit. Let's bring date into the mix and see what that tells us. (I think the salient point here is that we're plotting this thing of interest, negative values, against other stuff in the dataset to see if we can learn anything about it.)
+
+```{r negs, fig.width=8}
+d2 <- pm2012$Date
+str(d2)
+d2 <- as.Date(as.character(d2), "%Y%m%d")
+hist(d2, "month")
+hist(d2[x2 < 0], "month")
+```
+
+So it seems like negative values happen in colder months. This doesn't really tell us a ton, but it might be something to look into late. Honestly though, probably not important given that it's about 2% of our 2012 data...
+
+## Hone the question
+So we can see via the boxplots and summaries that the mean went down from 1999 to 2012, but now we're going to see if we can witness the change happening on a single monitor. These monitors are all over the US, and there were significantly fewer monitors in 1999 than in 2012, so we'll have to find a monitor that spans the total timeframe. We'll look in NY.
+
+NY is `State.Code` 36, FYI. We want to get the unique locations in NY for each year.
+
+**ENTER DPLYR**
+
+```{r findsites}
+locs1 <- unique(pm1999 %>% filter(State.Code == 36) %>% select(State.Code, County.Code, Site.ID) %>% mutate(locID = paste(County.Code, Site.ID, sep = ".")))
+locs2 <- unique(pm2012 %>% filter(State.Code == 36) %>% select(State.Code, County.Code, Site.ID) %>% mutate(locID = paste(County.Code, Site.ID, sep = ".")))
+
+commonsites <- intersect(locs1$locID, locs2$locID)
+commonsites <- locs1 %>% filter(locID %in% commonsites)
+commonsites
+```
+
+Now that we have 10 locations to choose from, let's find the ones with the most data.
+
+```{r mostdata}
+sites1999 <- pm1999 %>% filter(State.Code == 36 & County.Code %in% commonsites$County.Code & Site.ID %in% commonsites$Site.ID) %>% select(County.Code, Site.ID, Sample.Value) %>% group_by(County.Code, Site.ID) %>% summarise(numObs = n())
+
+sites2012 <- pm2012 %>% filter(State.Code == 36 & County.Code %in% commonsites$County.Code & Site.ID %in% commonsites$Site.ID) %>% select(County.Code, Site.ID, Sample.Value) %>% group_by(County.Code, Site.ID) %>% summarise(numObs = n())
+
+csiteobs <- left_join(sites1999, sites2012, by = c("County.Code", "Site.ID"))
+csiteobs
+```
+
+So for some reason the instructor decides to look more closely at county 63, site 2008. Clearly county 1, site 5 is a better option. As we continue, I'll do his version, but I'm going to also look at site 5.
+
+So let's subset all of our data. We'll need site 2008 from 1999 (dubbed `s299`), and from 2012 (`s212`); and I'll grab site 5 from 1999 (`s599`) and 2012 (`s512`).
+
+```{r sitesubs}
+s299 <- pm1999 %>% filter(State.Code == 36, County.Code == 63, Site.ID == 2008)
+s212 <- pm2012 %>% filter(State.Code == 36, County.Code == 63, Site.ID == 2008)
+s599 <- pm1999 %>% filter(State.Code == 36, County.Code == 1, Site.ID == 5)
+s512 <- pm2012 %>% filter(State.Code == 36, County.Code == 1, Site.ID == 5)
+```
+
+So what we're trying to do is plot the Sample Values over time. We need to recode the dates as date objects.
+
+```{r fixdates}
+s299$Date <- as.Date(as.character(s299$Date), "%Y%m%d")
+s212$Date <- as.Date(as.character(s212$Date), "%Y%m%d")
+s599$Date <- as.Date(as.character(s599$Date), "%Y%m%d")
+s512$Date <- as.Date(as.character(s512$Date), "%Y%m%d")
+```
+
+So now let's make a quick plot of those 4 datasets; 2 sites across 2 years.
+
+```{r plotsites, fig.height=12}
+# ID range to use for ylim arguments
+r2 <- range(s299$Sample.Value, s212$Sample.Value, na.rm = TRUE)
+d2jkr5 <- range(s599$Sample.Value, s512$Sample.Value, na.rm = TRUE)
+
+par(mfrow = c(2, 2))
+plot(s299$Date, s299$Sample.Value, ylim = r2)
+abline(h = median(s299$Sample.Value, na.rm = TRUE))
+plot(s212$Date, s212$Sample.Value, ylim = r2)
+abline(h = median(s212$Sample.Value, na.rm = TRUE))
+plot(s599$Date, s599$Sample.Value, ylim = d2jkr5)
+abline(h = median(s599$Sample.Value, na.rm = TRUE))
+plot(s512$Date, s512$Sample.Value, ylim = d2jkr5)
+abline(h = median(s512$Sample.Value, na.rm = TRUE))
+```
+
+You can see that we've set the y-axes to the same scale so it makes some sense, and we've plotted the median for each dataset. Interestingly, the medians definitely decrease over time, but so does the variability (I think. Actually, I'd need to see that in terms of standard deviations to really know...).
+
+```{r makehists, echo=FALSE, include=FALSE}
+h1 <- hist(s299$Sample.Value)
+h2 <- hist(s212$Sample.Value)
+h3 <- hist(s599$Sample.Value)
+h4 <- hist(s512$Sample.Value)
+
+s2rng <- range(h1$counts, h2$counts)
+s2dmn <- range(h1$breaks, h2$breaks)
+s5rng <- range(h3$counts, h4$counts)
+s5dmn <- range(h3$breaks, h4$breaks)
+```
+
+```{r plothists, fig.height=12}
+sd(s299$Sample.Value, na.rm = TRUE)
+sd(s212$Sample.Value, na.rm = TRUE)
+sd(s599$Sample.Value, na.rm = TRUE)
+sd(s512$Sample.Value, na.rm = TRUE)
+
+par(mfrow = c(2, 2))
+
+plot(h1, xlim = s2dmn, ylim = s2rng)
+plot(h2, xlim = s2dmn, ylim = s2rng)
+plot(h3, xlim = s5dmn, ylim = s5rng)
+plot(h4, xlim = s5dmn, ylim = s5rng)
+```
+
+### By State
+Mkay, so that's nifty. We've looked at the national level, a couple of individual monitor sites, and we've seen the pm2.5 levels drop across the board. Now we're gonna look at the data at the state level and see how it behaves.
+
+```{r statemeans}
+stmns99 <- pm1999 %>% select(State.Code, Sample.Value) %>% group_by(State.Code) %>% summarise(mean = mean(Sample.Value, na.rm = TRUE))
+stmns12 <- pm2012 %>% select(State.Code, Sample.Value) %>% group_by(State.Code) %>% summarise(mean = mean(Sample.Value, na.rm = TRUE))
+
+statemeans <- left_join(stmns99, stmns12, by = "State.Code", suffix = c(".1999", ".2012"))
+```
+
+```{r plotstmns}
+rng <- range(statemeans$mean.1999, statemeans$mean.2012, na.rm = TRUE)
+par(mfrow = c(1, 1))
+plot(rep(1999, length(statemeans$mean.1999)), statemeans$mean.1999, xlim = c(1998, 2013), ylim = rng)
+points(rep(2012, length(statemeans$mean.2012)), statemeans$mean.2012)
+segments(x0 = rep(1999, length(statemeans$mean.1999)), y0 = statemeans$mean.1999, x1 = rep(2012, length(statemeans$mean.2012)), y1 = statemeans$mean.2012)
+```
+
+Interesting, we can definitely see that the trend is down, but some states are moving up. Which states? Glad you asked...
+
+```{r idstates}
+badstates <- statemeans %>% filter(mean.2012 > mean.1999)
+badstates
+```
+
+And with that, finally, holy fucking shit balls finally, I'm done with wk 4 of this god-forsaken class...
+
+Now onto the fucking project.
