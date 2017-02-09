@@ -1,0 +1,302 @@
+---
+title: "6. Statistical Inference - Week 2 Notes"
+output: html_notebook
+---
+
+# Variability
+In addition to the mean, another useful parameter of a distribution is the variance, given by:
+
+     Var(X) = E[(X - mu)^2] = E[X^2] - E[X]^2
+
+This is a measure of "spread out-ness". The square root of variance is called the standard deviation.
+
+Just like with means, where the sample mean is analagous to the population mean, so it is with variance. The sample variance is given by:
+
+     S^2 = Sigmg_i-1 [( X_i - X_bar)^2 / (n - 1) ]
+
+Man, I've really gotta figure out how to type equations in these documents...
+
+Again, as with the means, the sample variance is a random variable that is the population variance. So its distribution is centered around the actual population variance.
+
+Just as we learned earlier that the sample mean `mu` relates to the population mean `X_bar`, we can also relate the sample variance to that of the population with:
+
+     Var(X_bar) = sigma^2 / n
+
+or, the variance of the original population, `sigma^2` divided by `n` data points is the variance of the population.
+
+**Summary**: Imagine a population with mean `mu` and variance `sigma^2`. The sample variance `S^2` estimates the population variance `sigma^2`. `S^2` is itself a random variable with a distribution, and that distribution is centered around the population value (variance, here) `sigma^2`. And it gets more concentrated around `sigma^2` the more data we throw at it (the more samples we take and measure the variance of to comprise the distribution of `S^2`). We also know that the sample mean `X_bar` estimates the population mean `mu` and that it gets more concentrated around `mu` as the number of samples (of size `n`) increases.
+
+We also know the variation of the distribution of sample means; it's `sigma^2 / n`. We can take repeated draws from the sample, take the mean, and use those to build up this distribution. The logical estimate of this is `s^2 / n`, where `s` is the variance of a sample. And the logical estimate of the standard error is `S / sqrt(n)`, where `S` is the standard deviation.
+
+So `S` is the standard deviation, which tells you how variable the population is. `S / sqrt(n)` is the standard error, which tells you about how variable *averages of random samples of size n* from the population are.
+
+## Simulations
+Now we're going to do some simulation examples to make this clearer.
+
+Standard normals have a variance of 1; means of `n` standard normals have a standard deviation of `1 / sqrt(n)`. This means that if you generate 100 random normal variables a bunch of times, and you take the mean for every sample, those means would have a standard deviation of `1 / sqrt(n)`.
+
+```{r norms}
+library(ggplot2)
+n <- abs(rnorm(1, rnorm(1, 100, 25), rnorm(1, 50, 25)))
+x <- sapply(rep(n, 1000), function(x) mean(rnorm(x, 0, 1)))
+qplot(x)
+1/sqrt(n)
+sd(x)
+```
+
+Now we can do the same thing for the uniform distribution. Standard uniform random variables have variance 1/12; means of random samples of size `n` have standard deviation of `1 / sqrt(12 * n)`.
+
+```{r unifs}
+n <- abs(rnorm(1, rnorm(1, 100, 25), rnorm(1, 50, 25)))
+x <- sapply(rep(n, 1000), function(x) mean(runif(x, 0, 1)))
+qplot(x)
+1/sqrt(12*n)
+sd(x)
+```
+
+Now we'll do poisson variables. Poisson(4)'s have a variance of 4, and means of random samples of size `n` have sd = `2/sqrt(n)`.
+
+```{r pois}
+n <- abs(rnorm(1, rnorm(1, 100, 25), rnorm(1, 50, 25)))
+x <- sapply(rep(n, 1000), function(x) mean(rpois(x, 4)))
+qplot(x)
+2/sqrt(n)
+sd(x)
+```
+
+Coin flips (Bernoulli variables). These have variance 0.25, and means of random samples of size `n` have sd = `1/(2*sqrt(n))`.
+
+```{r coins}
+n <- abs(rnorm(1, rnorm(1, 100, 25), rnorm(1, 50, 25)))
+x <- sapply(rep(n, 1000), function(x) mean(rbinom(n, 1, 0.5)))
+qplot(x)
+1/(2*sqrt(n))
+sd(x)
+```
+
+This is important, so make sure you get this.
+
+# Common distributions
+This is where we learn a bit about some common and inportant distributions, starting of course with...
+
+## Binomial distribution
+The Bernoulli distribution is a binary outcome distribution (coin flip). Bernoulli random variables take only 0 or 1 with probabilities of `p` and `1 - p`. So the mass function is:
+
+     P(X = x) = p^x * (1 - p)^(1 - x)
+
+The mean of a Bernoulli random variable is `p` and the variance is `p(1 - p)`.
+
+But that is basically for a single Bernoulli trial (I think...). Lots of Bernoulli trials make up a binomial distribution. The mass function for a binomial distribution is:
+
+     P(X = x) = (n choose x) * p^x * (1 - p)^(n - x)
+
+     where (n choose x) = n! / (x! * (n - x)!)
+          remember (n choose 0) and (n choose 1) = 1
+
+Suppose a friend has 8 kids, 7 are girls. If each gender has an independent 50% probability at each birth, what's the probability of getting 7 *or more* girls out of 8 births?
+
+Here, `p = 0.5`, `x = 7` (from `P(X = x)`, probability that `X` is 7), `n = 8` (number of Bernoulli trials)
+
+     P(X = 7) = (8 choose 7) * 0.5^7 * 0.5^(8-7)
+     P(X = 8) = (8 choose 8) * 0.5^8 * 0.5^0
+
+     add them together to get ~= 0.035
+
+R code to do this:
+
+```{r binom}
+pbinom(6, 8, 0.5, lower.tail = FALSE)
+```
+
+## Normal distribution
+The most important distribution. If `X` follows a normal, or Gaussian, distribution, then it has `E[X] = mu` and `Var(X) = sigma^2`, which we write as `X ~ N(mu, sigma^2)`.
+
+When `mu = 0` and `sigma = 1`, then we call it the standard normal distribution. We can then make 1 standard deviation a sort of unit distance from the mean which can explain a constant area on any (non-standard) Gaussian distribution. So 34% of the area of a Gaussian always lies between `mu` and 1 standard deviation. So that means 68% lies within 1 standard deviation in either direction. Similarly, 95% lies within 2 standard deviations. And 99% lies within 3 standard deviations.
+
+We can convert any non-standard normal distribution to a standard normal by subtracting off `mu` and dividing by `sigma`.
+
+     Z = (X - mu) / sigma ~ N(0, 1)
+
+Likewise, we can convert back to the original distribution `X` with:
+
+     X = mu + sigma * Z  ~ N(mu, sigma^2)
+
+We can also describe the quantile points of the standard normal distribution.
+
+* point -1.28 is the bottom decile (bottom 10%)
+* point -1.645 is the bottom 5%
+* point -1.96 is the bottom 2.5%
+* point -2.33 is the bottom 1%
+
+The symmetric points across 0 are the top 10%, 5%, 2.5%, and 1%, respectively.
+
+For a non-standard normal distribution, those quantiles don't lie exactly on those points, but rather they are given by
+
+     mu + x * sigma
+     where x is the similar point for the standard distribution
+
+The `q<dist>()` functions in R tell you the quantiles for the relevant distributions.
+
+## Poisson distribution
+This distribution is used to model counts, survival rates, contingency tables, or to approximate binomials when `n` is large and `p` is small. The mass function is
+
+     P(X = x; lambda) = (lambda^x * e^-lambda) / x!
+     where lambda is both the mean and the variance
+
+`X ~ Poisson(lambda*t)` where `lambda = E[X/t]` is the expected count per unit time, and `t` is the total monitoring time.
+
+Assume that people arrive to the bus stop at an average rate of 2.5 people per hour. If we watch the bus stop for 4 hours, what is the probability that 3 or fewer people show up? We can do this is R with `ppois(3, lambda = 2.4 * 4)`.
+
+Let's talk about approximating binomials. When `n` is large and `p` is very small, you can use `lambda = np` to come up with a good approximation of the binomial distribution using the poisson distribution.
+
+# Asymptotics
+Asymptotics refer to the behavior of estimators as the sample size goes to infinity. This is an important subject because our very notions of probability are defined in terms of the infinite. When we talk about a coin flip having a 50% probability, what we mean is that given infinite coin flips, the probability would be exactly 50%.
+
+## Law of large numbers
+As the number of coin flips increases, the estimator of the probability of heads will converge to the true probability. You flip 2 coins, who knows what the fuck the mean will be. Flip 2000 coins, it'll be around 50%.
+
+An estimator is **consistent** if it converges to what you want to estimate, like the sample mean above. The law of large numbers says that the sample mean is consistent for the population mean. Good estimators should be consistent. And the sample mean is not the only consistent thing we already know, the sample variance and the sample standard deviations of IID random variables are consistent as well.
+
+## Central limit theorem
+The central limit theorem is a beast of a theorem, with lots of implications, all of them fun. For us, it just means that the distribution of averages of IID random variables (properly normalized) becomes the standard normal distribution as the sample size increases.
+
+This means that if you normalize your sample data (`(X_bar,n - mu) / sigma`), then the distribution of averages of that sample data will be a standard normal distribution.
+
+Let's do some examples, starting with dice! Let `X_i` be the outcome for die i. Remember that `mu = E[X_i] = 3.5` and `Var(X_i) = 2.92`. So the standard error `SE = 1.71/sqrt(n)`. So we'll roll `n` dice, take their mean, subtract off 3.5, and divide by `1.71/sqrt(n)`. By 30 die rolls, the histogram of those averages looks really damn good; standard and normal.
+
+## Asymptotics and confidence intervals
+Let's assume `X_bar` is approximately normal with mean `mu` and standard deviation `sigma / sqrt(n)`. `mu +- 2*sigma / sqrt(n)` is 2 standard deviations away from the mean, and so the probability that `mu` is between those 2 values is 95%. So `X_bar +- 2*sigma / sqrt(n)` is called a 95% confidence interval for `mu`. (Actually, the way he interprets this is that the probability that the interval `X_bar +- 2*sigma / sqrt(n)` covers `mu` is 95%.)
+
+What this really means is that if we were to repeatedly draw samples of size `n` from this population and construct the confidence interval for each sample, about 95% of the intervals that you obtained would contain `mu`, which is the parameter we're trying to estimate. Note that we obtain the 2 above by rounding up the 97.5th quantile, which is about 1.96 standard deviations. If you wanted a 90% confidence interval, you would want 5% on each end of the distribution, so you would use the standard deviation associated with the 95th percentile, or 1.64.
+
+Let's consider the son's height from the `father.son` data in the `UsingR` package (although we won't download or load it). If `x <- father.son$sheight`, the sons' heights, then we could find the 95% confidence interval, in units of feet, with `(mean(x) + c(-1, 1) * qnorm(0.975) * sd(x)/sqrt(length(x))) / 12`. This is equivalent to `mu +- K*sigma / sqrt(n)` where `K` is the quantile range expressed in standard deviations, `sigma` is `sd(x)`, and `length(x)` is `n`. We divide by 12 to convert inches to feet. The result is `## [1] 5.710 5.738`, which is the 95% confidence interval for the average son's height.
+
+Let's consider coin flips where `X_i` is a flip with common success probability `p` and variance `sigma^2 = p(1 - p)`. Here, the interval takes the form:
+
+     p_hat +- z_(1-alpha/2) * sqrt( p(1 - p) / n )`
+
+`sqrt( p(1 - p) / n )` is the standard error term, and if you replace `p` with `p_hat` in that term, a bunch of shit cancels and you end up with `p_hat +- 1 / sqrt(n)`, which is the Wald confidence interval (for 95%?).
+
+You're running for office and your campaign manager said that in 100 people sampled, 56 said they're voting for you. Woohoo. The Wald interval says you can take `1/sqrt(n)` or `1/sqrt(100)`, which yields 0.1, and construct your 95% confidence interval with that. `0.56 +- 0.1 = 0.46, 0.66`. The confidence interval says we cannot rule out possibilities below 0.5 with 95% confidence, so you don't have this in the bag.
+
+### Simulation example
+Let's do a simulation to see how good the Wald interval is. We're going to flip a coin a bunch of times for a bunch of probability values `p`. Then we're going to calculate the Wald interval and see how often is covers the true probability value. Here's the code:
+
+```{r waldsim}
+n <- 20
+pvals <- seq(0.1, 0.9, by = 0.05)
+nosim <- 1000
+coverage <- sapply(pvals, function(p) {
+     phats <- rbinom(nosim, size = n, prob = p)/n
+     lolimit <- phats - qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     uplimit <- phats + qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     mean(lolimit < p & uplimit > p)
+})
+```
+
+So `n` is how many coin flips we're doing. `pvals` is the true probability values that we're examining. `nosim` is the number of simulations that we're doing. Our function will apply over every `pval` value and conduct 1000 binomial trials of 20 coin flips each (`rbinom(n = nosim = 1000, size = n = 20, prob = p = pvals_i)`). The result, btw, is the number of successes in each binomial trial of 20 events. So a high probability means more successes (up to 20), and a low probability means fewer successes. Then we divide by `n` (20) to get a success rate which estimates a `pvals` value.
+
+So now, for a given `pvals` value, we have 1000 succcess rates in `phats`. We then find the limits of our confidence interval with the equations above, and finally calculate the percentage of times that the confidence intervals actually included the value `p`.
+
+Then we can plot those coverage rates against the probability values `p`.
+
+```{r covplot}
+qplot(pvals, coverage, geom = c("point", "line"), ylim = c(0.75, 1))
+```
+
+Remember, we're plotting the percentage of times that the confidence interval included the value `p`. So for a 95% CI, we should see 95% across the board. This is clearly not the case.
+
+The problem is that the central limit theorem simply isn't accurate enough for small values of `n` and many values of `p`. As a quick fix, you can add 2 to each of your successes and failures. This is known as the Agresti/Coull interval. But first, let's show that coverage does in fact improve with `n`. Below, we've changed `n` from 20 to 200
+
+```{r upn}
+n <- 200
+pvals <- seq(0.1, 0.9, by = 0.05)
+nosim <- 1000
+coverage <- sapply(pvals, function(p) {
+     phats <- rbinom(nosim, size = n, prob = p)/n
+     lolimit <- phats - qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     uplimit <- phats + qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     mean(lolimit < p & uplimit > p)
+})
+qplot(pvals, coverage, geom = c("point", "line"), ylim = c(0.75, 1))
+```
+
+Now let's go back to `n = 20` and look at the Agresti/Coull interval. Note in the `phats` line we've added 2 successes and 2 failures to each trial.
+
+```{r agcoull}
+n <- 20
+pvals <- seq(0.1, 0.9, by = 0.05)
+nosim <- 1000
+coverage <- sapply(pvals, function(p) {
+     phats <- (rbinom(nosim, size = n, prob = p) + 2)/(n + 4)
+     lolimit <- phats - qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     uplimit <- phats + qnorm(0.975) * sqrt(phats * (1 - phats)/n)
+     mean(lolimit < p & uplimit > p)
+})
+qplot(pvals, coverage, geom = c("point", "line"), ylim = c(0.75, 1))
+```
+
+This interval is more stable across values of `p` when `n` is small, although it's actually a little conservative. In general, this should be used over the Wald interval for small `n`.
+
+### Poisson intervals
+We have a nuclear pump that failed 5 times out of 94.32 days. What's the 95% confidence interval for the failure rate of the pump, per day?
+
+Let's assume `X ~ Poisson(lt)`, where `l = lambda`. Our estimate of the failure rate is `lhat = X/t` and the variance of that estimate is `var(lhat) = l/t`. So `lhat/t` is our empirical variance estimate. Wut?
+
+In R:
+```{r poisinterval}
+x <- 5
+t <- 94.32
+l <- x/t
+round(l + c(-1, 1) * qnorm(0.975) * sqrt(l/t), 3)
+```
+
+This gives us a 95% confidence interval for the rate of failure. Somehow...
+
+Now we can do the same simulation as above and look at how accurate this interval is. Let's investigate some lambda values near the ones we just calculated, and round `t` to 100.
+
+```{r poissim}
+lvals <- seq(0.005, 0.1, by = 0.01)
+nosim <- 1000
+t <- 100
+coverage <- sapply(lvals, function(l) {
+     lhats <- rpois(nosim, lambda = l*t)/t
+     lolimit <- lhats - qnorm(0.975) * sqrt(lhats/t)
+     uplimit <- lhats + qnorm(0.975) * sqrt(lhats/t)
+     mean(lolimit < l & uplimit > l)
+})
+qplot(lvals, coverage, geom = c("point", "line"), ylim = c(0, 1))
+```
+
+We see a similar thing with the monitoring time `t` here as we saw previously with sample size `n`. With small `t`, the confidence interval doesn't contain lambda 95% of the time. However, as monitoring time increases to infinity, coverage will converge to 95%.
+
+```{r poissimt}
+lvals <- seq(0.005, 0.1, by = 0.01)
+nosim <- 1000
+t <- 1000
+coverage <- sapply(lvals, function(l) {
+     lhats <- rpois(nosim, lambda = l*t)/t
+     lolimit <- lhats - qnorm(0.975) * sqrt(lhats/t)
+     uplimit <- lhats + qnorm(0.975) * sqrt(lhats/t)
+     mean(lolimit < l & uplimit > l)
+})
+qplot(lvals, coverage, geom = c("point", "line"), ylim = c(0, 1))
+```
+
+God I need a crash-course in all things statistics...
+
+# Summary
+The law of large numbers states that the averages of IID samples converge to the population means that they are estimating.
+
+The central limit theorem states that averages are approximately normal, with distributions:
+
+* centered at the population mean
+* with standard deviation equal to the standard error of the mean
+
+However, the CLT gives no guarantee that `n` is large enough.
+
+Taking the mean and adding/subtracting the relevant normal quantile times the standard error yields the confidence interval for the mean. Adding/subtracting 2 SE's works for 95% confidence intervals (although 1.96 is more accurate).
+
+Confidence intervals get wider as the coverage increases. They must be wider to achieve higher certainties.
+
+The Poisson and binomial cases have exact intervals that don't require the CLT, and for small `n` binomial calculations you can get a good interval with the Agresti/Coull tweak.
