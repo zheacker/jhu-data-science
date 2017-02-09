@@ -1,0 +1,208 @@
+---
+title: "6. Statistical Inference - Project"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", fig.width = 10)
+```
+
+```{r loadpkgs, echo=FALSE}
+loadlist <- c("dplyr",
+             "ggplot2",
+             "gridExtra",
+             "wesanderson"
+             )
+suppressMessages(sapply(loadlist, library, character.only = TRUE))
+```
+
+# Simulating the Exponential Distribution
+We'll be looking at the exponential distribution and the central limit theorem. The R function for this is the `rexp(n, lambda)` function where `n` is the number of random variables and `lambda` is the rate parameter. We'll use `lambda = 0.2`. The mean and standard deviation of the exponential function are both $1/\lambda$. We're going to run 1000 simulations on the averages of 40 exponentials.
+
+Let's start by looking at the exponential distribution, say 1000 observations, so it's pretty. I've also plotted the mean and 1 standard deviation of our 1000 observations.
+
+```{r expo}
+sims <- 10000
+lam <- 0.2
+expos1k <- rexp(sims, lam)
+mn1 <- mean(expos1k)
+sdev1 <- sd(expos1k)
+g1 <- ggplot(data.frame(x = expos1k), aes(x = x)) + geom_density(fill = "salmon") +
+     geom_vline(xintercept = c(mn1, mn1 - sdev1, mn1 + sdev1))
+g1
+```
+
+Theory says that the mean and standard deviation of the exponential distribution should be $1/\lambda = 1/0.2 = 5$. In the case above, the mean of our 1000 observations was `r mn1`, and the standard deviation was `r sdev1`. Looks pretty good.
+
+Things get a bit messier when we only consider 40 observations:
+
+```{r expo40}
+n <- 40
+lam <- 0.2
+expos40 <- rexp(n, lam)
+mn2 <- mean(expos40)
+sdev2 <- sd(expos40)
+g2 <- ggplot(data.frame(x = expos40), aes(x = x)) + geom_density(fill = "salmon") +
+     geom_vline(xintercept = c(mn2, mn2 - sdev2, mn2 + sdev2))
+g2
+```
+
+Here, we see a mean of `r mn2` and standard deviation of `r sdev2`. Due to the small sample size, different samples can yield pretty different results. Another random sample might yield a mean of `r ex2 <- rexp(n, lam); mean(ex2)` and a standard deviation of `r sd(ex2)`. Another still, mean = `r ex3 <- rexp(n, lam); mean(ex3)`, sd = `r sd(ex3)`.
+
+Now let's run some simulations. Instead of 1 sample of size 40, let's look at the means of 1000 samples of size 40. According to the central limit theorem, these 1000 sample means should fall into a (near?) normal distribution centered around the theoretical exponential distribution mean.
+
+```{r expsims}
+simMeans <- sapply(1:sims, function(x) {mean(rexp(n, lam))})
+mn3 <- mean(simMeans)
+sdev3 <- sd(simMeans)
+g3 <- ggplot(data.frame(x = simMeans), aes(x = x)) +
+     geom_density(color = "black", fill = "lightblue") +
+     geom_vline(xintercept = c(mn3, mn3 - sdev3, mn3 + sdev3))
+g3
+```
+
+And sure enough, we can see that the distribution looks kinda normal, and is centered around 5. Remember that the standard deviation of *this* distribution is the standard error, i.e. the average(?) error in our sample mean from the population mean.
+
+```{r twofer, echo=FALSE, eval=FALSE}
+g4 <- ggplot(data.frame(obs = expos1k, simMeans = simMeans)) +
+     geom_density(aes(x = obs), fill = "salmon") +
+     geom_density(aes(x = simMeans), fill = "lightblue", alpha = 0.8) +
+     geom_vline(xintercept = mn3)
+g4
+```
+
+Now let's normalize this thing. Remember, when normalizing a distribution that is a sample mean of a random sample, we subtract the mean off and divide by the standard error. That is, $Z = \frac{\bar{X} - E[X]}{\sigma(X)/\sqrt{n}}$.
+
+We know that the exponential distribution has mean $\mu = 1/\lambda$ and standard deviation $\sigma = 1/\lambda$. Since our $\lambda = 0.2$, $\mu = \sigma = 5$. Those are the population values. When the population values are known, we know that the standard error of the mean is $\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}$. So we can directly calculate that SEM = `r 5/sqrt(40)`.
+
+But let's consider the case where we don't know the population values. We know that the standard deviation of the sampling distribution of the mean is an estimate of the standard error of the mean. So we could set SE = `r sdev3` and subtract our sampling distribution mean `r mn3`. (Actually, I'm not entirely sure how well this would work. I need to bone up on normalizing distributions with unknown parameters.) But for now, we know that this data was generated from the exponential distribution, so let's use the population parameters to normalize the sampling distribution.
+
+```{r normed}
+normed <- (simMeans - 5)/(5/sqrt(n))
+mn4 <- mean(normed)
+sdev4 <- sd(normed)
+g5 <- ggplot(data.frame(x = normed), aes(x = x)) + geom_density(fill = "lightblue") +
+     geom_vline(xintercept = c(mn4, mn4 - sdev4, mn4 + sdev4))
+g5
+```
+
+That looks normal-ish. But can we know that? This'll be fun. We're going to extract the density curve from the `ggplot` function, and then we're going to integrate (or at least approximate) to find the area under the curve. We should be able to find the area under 1, 2, and 3 standard deviations and compare those numbers to the true areas under those respective portions of the normal distribution. First things first, we need to extract the plotted density curve. You can use the `ggplot_build` function to produce the ggplot2 object without printing the actual graphic. Using the `g5` object above, we can do this:
+
+```{r look}
+thingy <- ggplot_build(g5)
+str(thingy$data)
+str(thingy$data[[1]])
+```
+
+We created a text ggplot2 object, which has 3 components; we care about the `$data` component. `$data` has 2 data frames in it, and we want the first one. Notice that this data frame has `x` and `y`. Those are the points for our density curve. Just to prove it, we'll plot them in the base graphics system.
+
+```{r extract}
+df <- as.data.frame(thingy$data[[1]][1:2])
+plot(df$x, df$y)
+```
+
+Now we integrate. Below is a short function that takes in a `ggplot` density object, and 2 locations on the x-axis, and integrates the area under the plotted density between the x-axis.
+
+```{r integrate}
+ggintegrate <- function(gg, z1 = NULL, z2 = NULL) {
+     tmp <- ggplot_build(gg)
+     data <- as.data.frame(tmp$data[[1]][1:2])
+
+     if(is.null(z1)) {z1 <- data$x[1]}
+     if(is.null(z2)) {z2 <- data$x[length(data$x)]}
+
+     inds <- data$x >= z1 & data$x <= z2
+
+     x <- data$x[inds]
+     y <- data$y[inds]
+     rng <- range(x)
+     l <- length(x)
+     w <- (rng[2] - rng[1])/(l - 1)
+
+     area <- 0
+
+     for(i in 1:(l - 1)) {
+          area <- area + (0.5 * w * (y[i] + y[i + 1]))
+     }
+     area
+}
+```
+
+Since we know how much area *should* be under a normal curve at various standard deviation ranges, we can use `ggintegrate` to test our normalized curve for normality.
+
+Because we normalized the sampling distribution of the mean, the x-axis is basically Z scores. And because it's a density plot, the area under the entire curve is already normalized to unit 1. (That means the area that we calculate is already proportional to the entire curve; we don't have to divide it by the total.)
+
+So what do we have? We know the area within 1 standard deviation should be 68.27%. And what did we find? DRUMROLL......
+
+```{r onesd}
+ggintegrate(g5, -1, 1)
+ggintegrate(g5, -1, 1)/ggintegrate(g5)
+```
+
+That number should be about 68%. And the area within 2 standard deviations should be 95.45%. What about our curve?
+
+```{r twosds}
+ggintegrate(g5, -2, 2)
+ggintegrate(g5, -2, 2)/ggintegrate(g5)
+```
+
+Did those match perfectly? Probably. Cause I'm great. 3 standard deviations? 99.73%. Let's find out, NUMBER ONE ANSWER ON THE BOARD!?
+
+```{r threesds}
+ggintegrate(g5, -3, 3)
+ggintegrate(g5, -3, 3)/ggintegrate(g5)
+```
+
+So yeah, those should match. If they match, I'm a muthafuggin badayuss.
+
+# Part Deux: Tooths
+```{r tooths}
+data("ToothGrowth")
+head(ToothGrowth)
+dim(ToothGrowth)
+str(ToothGrowth)
+summary(ToothGrowth)
+# ToothGrowth$dose <- as.factor(ToothGrowth$dose)
+
+g6 <- ggplot(ToothGrowth, aes(x = len)) + geom_density(fill = "salmon")
+g6
+
+g7 <- ggplot(ToothGrowth, aes(x = len, group = supp, fill = supp)) + geom_density(alpha = 0.75)
+g7
+
+g8 <- ggplot(ToothGrowth, aes(x = len, group = dose, fill = dose)) + geom_density(alpha = 0.75)
+g8
+```
+
+```{r indieTs}
+tsupp1 <- ToothGrowth %>% filter(supp == "VC")
+tsupp2 <- ToothGrowth %>% filter(supp == "OJ")
+tdose1 <- ToothGrowth %>% filter(dose == 0.5)
+tdose2 <- ToothGrowth %>% filter(dose == 1)
+tdose3 <- ToothGrowth %>% filter(dose == 2)
+
+tests1 <- t.test(tsupp1$len)
+tests2 <- t.test(tsupp2$len)
+testd1 <- t.test(tdose1$len)
+testd2 <- t.test(tdose2$len)
+testd3 <- t.test(tdose3$len)
+```
+
+```{r betterplots, eval=FALSE, echo=FALSE}
+g9 <- ggplot(ToothGrowth, aes(x = len, group = supp, fill = supp)) +
+     geom_density(alpha = 0.75) +
+     geom_vline(xintercept = tests1$estimate, color = "black") +
+     geom_vline(xintercept = tests1$conf.int) +
+     geom_vline(xintercept = c(tests2$estimate, tests2$conf.int), color = "salmon")
+g9
+```
+
+```{r boxplots}
+g10 <- ggplot(ToothGrowth, aes(supp, len, fill = supp)) +
+     geom_boxplot(notch = TRUE) + coord_flip()
+g10
+
+g11 <- ggplot(ToothGrowth, aes(dose, len, group = dose, fill = dose)) +
+     geom_boxplot(notch = TRUE) + coord_flip()
+g11
+```
