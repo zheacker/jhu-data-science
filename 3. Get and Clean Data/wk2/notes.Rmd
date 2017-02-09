@@ -1,0 +1,209 @@
+---
+title: "3. Get and Clean Data: Week 2 Notes"
+output: html_notebook
+---
+
+# Data Sources
+
+## Reading from MySQL
+Databases, tables, fields, records. MySQL is free and commonly used in interweb applications.
+
+So a database consists of lots of tables. A table would be a data frame in R, and the database tables each describe one logical component of the data. They're linked together by keys (id's).
+
+To really test this, it's best to start a local installation of MySQL and run against that. For these examples we'll be using a genomic database provided by UC Santa Cruz.
+
+You need to install RMySQL. Once you do that, you can connect to the database with:
+```{r}
+library(RMySQL)
+hg19 <- dbConnect(MySQL(), user="genome", db="hg19", host="genome-mysql.cse.ucsc.edu")
+allTables <- dbListTables(hg19)
+length(allTables)
+
+## now we can see the fields in a specific table and count the rows:
+dbListFields(hg19, "affyU133Plus2")
+dbGetQuery(hg19, "select count(*) from affyU133Plus2")
+
+## you can extract a table into a data frame
+affyData <- dbReadTable(hg19, "affyU133Plus2")
+```
+
+There's a lot of nuance in the RMySQL package, don't have time to unpack everything here.
+
+## Reading from HDF5
+HDF5 is used for storing large amounts of data in a hierarchical format.
+
+- **groups** contain zero or more datasets and metadata
+     - have a group header with group name and list of attributes
+     - have a group symbol table with a list of objects in the group
+- **datasets** are multidimensional arrays of data elements with metadata
+     - have a header with a name, data type, dataspace, and storage layout
+     - have a data array with the data
+
+The R HDF5 libraries are installed through bioconductor, but they're conveniently included in this dockerfile (hopefully). Uh-firmative, BioConductor capabilities verified.
+
+```{r}
+library(rhdf5)
+created = h5createFile("example.h5")
+created
+```
+
+There's an RHDF5 tutorial on bioconductor.org that is the basis for this lecture.
+
+Once we've created the `.h5` file, we can create groups within that file.
+
+```{r}
+created = h5createGroup("example.h5", "foo")
+created = h5createGroup("example.h5", "baa")
+created = h5createGroup("example.h5", "foo/foobaa")
+h5ls("example.h5")
+```
+
+There you can see the groups created, structed like the linux filesystem. Then you can write to those groups.
+
+```{r}
+A = matrix(1:10, nrow = 5, ncol = 2)
+h5write(A, "example.h5", "foo/A")
+B = matrix(seq(0.1, 2.0, by = 0.1))
+dim(B) <- c(5, 2, 2)
+attr(B, "scale") <- "liter"
+h5write(B, "example.h5", "foo/foobaa/B")
+h5ls("example.h5")
+```
+
+You can also just write a data frame to a `.h5` (ps, this is what you're pretty much always do...).
+
+```{r}
+df = data.frame(1L:5L, seq(0, 1, length.out = 5), c("ab", "cde", "fghi", "a", "s"), stringsAsFactors = FALSE)
+h5write(df, "example.h5", "df")
+h5ls("example.h5")
+```
+
+We just added the `data.frame` object `df` to at the `/` location.
+
+And you read these things with, surprise, `h5read`.
+
+```{r, eval=FALSE}
+readA = h5read("example.h5", "foo/A")
+readB = h5read("example.h5", "foo/foobaa/B")
+readdf= h5read("example.h5", "df")
+```
+
+h5 is also good for reading in chunks. We can modify our 5x2 matrix in `example.h5` with `h5write(c(12, 13, 14), "example.h5", "foo/A", index=list(1:3), 1))`
+
+## Reading from the web
+WEBSCRAPING!!! Programmatically extracting data from the tubes via the HTML that makes the tubes.
+
+First, read in the HTML, then we parse.
+
+```{r}
+con = url("http://scholar.google.com/citations?user=HI-I60AAAAJ&hl=en")
+htmlcode = readLines(con)
+close(con)
+htmlcode
+
+library(xml2)
+url <- "http://scholar.google.com/citations?user=HI-I60AAAAJ&hl=en"
+html <- xml2::read_html(url)
+html
+```
+
+OK, so the lectures use the `XML` package for this, but I'm going to use `xml2`, cause Hadley. So I'm gonna skip this stuff, I'll dig into `xml2` later, when I decide I need it.
+
+But you can also use the `GET` method from the `httr` package.
+
+```{r}
+library(httr)
+html2 = GET(url)
+
+content2 = content(html2, as = "text")
+parsedHtml = xml2::read_html(content2)
+```
+
+Again, I think they're using some `XML` functions here, so I'm probably gonna wind up skipping some of this.
+
+But the `GET` method extracts the data from the URL, then extracts the text with `content()`.
+
+This method allows you to access sites with a username and password, and store the authentication for multiple uses via "handles."
+
+```{r, eval=FALSE}
+site = GET("http://url.here.com", authenticate("username", "password"))
+names(site)
+
+## handles
+google = handle("http://google.com")
+pg1 = GET(handle=google, path="/")
+pg2 = GET(handle=google, path="/")
+```
+
+Using handles allows your cookies to be retained so your authentication persists.
+
+**NOTE:**
+
+* examples [here](https://www.r-bloggers.com/search/Web+Scraping/)
+* and [here](https://cran.r-project.org/web/packages/httr/httr.pdf)
+
+## Reading from APIs
+Usually, you need to create a dev account and register an app. This gives you your API keys.
+
+Then you can start the authentication process as below:
+
+```{r, eval=FALSE}
+myapp = oauth_app("appname", key = "your consumer key", secret = "your consumer secret")
+sig = sign_oauth1.0(myapp, token = "your token", token_secret = "your token secret")
+homeTL = GET("http://twitter.api.url.here", sig)
+
+## now you can read it in a couple of ways
+## this way is messy; content() recognizes json and formats it
+json1 = content(homeTL)
+
+## this way makes it more readable
+json2 = jsonlite::fromJSON(jsonlite::toJSON(json1))
+```
+
+You need to study the API documentation, but `httr` allows `GET`, `POST`, `PUT`, and `DELETE`, if you're authorized. You can authenticate with a username and password. Most APIs use oauth, get familiar with it. And check out the `httr` demo section on github.
+
+## Reading from Other Sources
+There are lots of other places from which you can get data. There's an R package for everything, so get to googlin'.
+
+#### Interacting with files more directly
+
+* `file` - open a connection to a text file
+* `url` - open a connection to a URL
+* `gzfile` - "" .gz file
+* `bzfile` - "" .bz2 file
+* `?connections` for more info
+* **remember to close connections**
+
+#### foreign package
+
+* loads data from minitab, S, SAS, SPSS, Stata, Systat
+     * `read.arff` (weka)
+     * `read.dta` (stata)
+     * `read.mtp` (minitab)
+     * `read.octave` (octave)
+     * `read.spss` (spss)
+     * `read.xport` (sas)
+     
+#### database packages
+
+* `RPostgreSQL`
+* `RODBC` - multiple databases, postgres, mysql, msft access, sqlite
+* `RMongo` and `mongodb` - mongo db
+
+#### Reading images
+
+* `jpeg`
+* `readbitmap`
+* `png`
+* `EBImage` (bioconductor)
+
+#### Reading GIS data
+
+* `rdgal`
+* `rgeos`
+* `raster`
+
+#### reading music data
+
+* `tuneR`
+* `seewave`
