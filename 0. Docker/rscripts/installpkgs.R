@@ -19,3 +19,4 @@ rm(toInstall)
 ## install any bioconductor packages necessary
 library(BiocInstaller)
 biocLite("rhdf5")
+biocLite("impute", ask = FALSE)
