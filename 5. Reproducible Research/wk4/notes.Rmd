@@ -1,0 +1,40 @@
+---
+title: "5. Reproducible Research - Week 4 Notes"
+output: html_notebook
+---
+
+# Caching
+So let's start with a recap of literate statistical programming.
+
+* an article is a stream of text and code
+* analysis code is divided into text and code "chunks"
+* each code chunk loads data and computes results
+* presentation code formats results
+* article text explains what is going on
+* literate programs can be **weaved** to produce human-readable documents
+* they can also be **tangled** to produce machine-readable documents
+
+So this is all well and good, but sometimes there are particular steps in an analysis that can be a beast. Or maybe, for posterity's sake, you want to save intermediary results as a test case. Or maybe you just want to iterate on the analysis faster.
+
+This is where caching comes in. Basically the idea is that when code chunks are executed as part of a knitr document, the results of specific code chunks can be stored in a databse (local or remote). Then, as the document is weaved/tangled, when those results are called for they are fetched from the database instead of recomputed.
+
+Here, R. Peng goes off on a schpeal about the `cacher` package. Here's the catch: `cacher` appears to have been removed from CRAN. There is an `R.cache` package, but I'm not sure I want to deal with all that just yet...
+
+# Case study: air pollution
+And we're back to air pollution and PM2.5. PM is composed of different chemical elements, and some elements may be more harmful than others. Right now we just measure PM2.5 without regard to types/sources. Here we're going to talk about the NMMAPS study, or the National Morbidity, Mortality, and Air Pollution Study. It focuses on PM10 and ozone (O3).
+
+The data was made available at the internet-based Health and Air Pollution Surveillance System, as well as the source code. This all served to make the entire study *highly* reproducible, and tons of people poured over the data.
+
+So R. Peng was one of those guys who poured over the data, and that's what we're talking about here. Not a case study that we can follow along with, but there was one really interesting technique that he demonstrated. The study looked at levels of nickel in PM10 over something like 60 communities in the US. The first gang concluded that nickel increased mortality by a statistically significant level, and Peng et al noticed that NY was responsible for 3 outlying data points that really forced the trend. So they went through all 60 communities and removed only 1 at a time. The idea was to show whether that regression line was particularly sensitive to any 1 community. So they plotted the slope of the line for each community removed, and NY turned out to be the strongest "force" acting on the regression. Nifty.
+
+# Case study: high throughput biology
+So this guy, Keith Baggerly, is talking about reproducibility and how important it is in biology. So basically a while ago there were some jabronies who said "We can predict sensitivity to various drugs based on genes. And we can do it with a standard test that we all know and love, and the data is public and everything is awesome." Basically they were doing principal component analysis on shit loads of genes to try to identify "metagenes" (c'mon guys...) that they could then use to predict drug sensitivity. Cool.
+
+So Baggerly--who does bioinformatics, sounds like he's the mathematician--gets pulled into a bio group who want to do this. Awesome. So they started with PCA on the training set, and shit looked great. Then they threw it at the test set. Shit's busted. No separation, no predictive ability whatsoever.
+
+What gives? Did we fuck up? Well, they looked at the individual genes in the paper and tried to make their heatmap. Shit's busted again. Basically the software they used led to an off-by-1 indexing error because 1 file needed a header row and another file needed *no* header row.
+
+Mkay, I'm not taking notes on this anymore, but it's a fun lecture. This is a poster child scenario for 1) how fucked science can be, and 2) why reproducible research is good. Keith Baggerly caught this shit. His crew did the hard work of digging into someone else's data and finding out that they fucked up royally. This guy is a fucking hero.
+
+# In conclusion
+Bad analysis is like a disease, and we need to take a preventative approach. Frame your question, *really* understand the goals of your analysis, and work accordingly. Go with god.
