@@ -1,0 +1,210 @@
+---
+title: "4. Exploratory Analysis - Week 2 Notes"
+output: html_notebook
+---
+
+# Advanced graphics: `lattice` & `ggplot2`
+
+## `lattice`
+`lattice` is good for plotting high-dimensional data and making many plots at once. In the base system, we had `mfrow` and `mfcol` which allowed us to make grids of multiple plots, but `lattice` is pretty highly optimized for this sort of thing.
+
+The `lattice` system is comprised of 2 packages: `lattice` and `grid`. `lattice` produces "Trellis" graphics (?) which are independent of the base system. `grid` is a foundational package on which `lattice` builds; we don't call `grid` functions directly.
+
+Unlike the base system, `lattice` does not initialize and annotate plots in different phases. These steps are all combined in a single function call.
+
+### lattice functions
+
+* `xyplot`: main function for scatterplots
+* `bwplot`: box and whiskers
+* `histogram`: histograms
+* `stripplot`: like boxplots but with actual points
+* `dotplot`: dots on 'violin strings'
+* `splom`: scatterplot matrix; like `pairs` in the base system
+* `levelplot`, `contourplot`: for plotting "image" data
+
+### `xyplot`
+Lattice functions usually take a formula as their first argument, usually of the form `xyplot(y ~ x | f * g, data)`.
+
+We use the formula notation: on the left side of `~` is the y-axis variable, right side is x-axis.
+
+`f` and `g` are *conditioning variables*, they're optional. The `*` indicates an interaction between 2 variables. The last argument is the data frame/list from which the variables should be pulled.
+
+Simple scatterplot:
+```{r}
+library(lattice)
+xyplot(Ozone ~ Wind, data = airquality)
+```
+
+Another, more complicated:
+```{r}
+airquality <- transform(airquality, Month = factor(Month))
+xyplot(Ozone ~ Wind | Month, data = airquality, layout = c(5, 1))
+```
+
+### lattice behavior
+The base system plots data directly to a graphics device, but the lattice system simply returns an object of class **trellis**.
+
+There are some behind-the-curtain print methods for lattice that do the actual work of plotting data on a graphics device. The results are autoprinted so it merely looks like the functions are doing the plotting. The output of lattice functions consists of "plot objects" that could theoretically be stored, but it's better to just reproduce them from code + data.
+
+Lattice functions also have *panel functions* which control what happens inside each panel of a plot. Panel functions receive the x,y coordinates of the appropriate data points as well as any other panel-specific options.
+
+Here's an example where we create some random data and plot it by "group."
+```{r}
+set.seed(10)
+x <- rnorm(100)
+f <- rep(0:1, each = 50)
+y <- x + f - f*x + rnorm(100, sd = 0.5)
+f <- factor(f, labels = c("group1", "group2"))
+xyplot(y ~ x | f, layout = c(2, 1))
+```
+
+Now with panel functions.
+```{r}
+xyplot(y ~ x | f, panel = function(x, y, ...) {
+     panel.xyplot(x, y, ...)
+     panel.abline(h = median(y), lty = 2)
+})
+```
+
+or:
+```{r}
+xyplot(y ~ x | f, panel = function(x, y, ...) {
+     panel.xyplot(x, y, ...)
+     panel.lmline(x, y, col = 2)
+     })
+```
+
+lattice is pretty simple and powerful, and it excels at small multiples and multidimensional data. However, I still don't have a thorough understanding of the various capabilities of the panel functions.
+
+## `ggplot2`
+THE graphics package in R. It's an implementation of the *Grammar of Graphics*, written by Leland Wilkinson. **Get and read this book.** (Warning, it's mucho dollars.) This is a theoretical framework which provides a common language with which  to develop statistical graphics.
+
+The basic function is `qplot` for quick plot. Takes a data frame and creates a graphic with *aesthetics* (size, shape, color) and *geoms* (points, lines).
+
+It's important to remember that factors should be used appropriately. Label them correctly, descriptively, and use them to represent the right data.
+
+### example data
+```{r}
+library(ggplot2)
+str(mpg)
+```
+
+This is the `hello, world` dataset of `ggplot2`.
+
+The form for `qplot` is `qplot(x-axis, y-axis, data)`. This produces a basic scatterplot. Then we can easily color by drivetrain, or add a trend (of sorts) to the data with the `geom` argument.
+
+```{r}
+qplot(displ, hwy, data = mpg)
+qplot(displ, hwy, data = mpg, color = drv)
+qplot(displ, hwy, data = mpg, geom = c("point", "smooth"))
+```
+
+You can make a histogram by only passing 1 variable. Here's the idea, but this example is dumb as shit.
+
+```{r}
+qplot(hwy, data = mpg, fill = drv)
+```
+
+### facets
+Facets are analogous to the panels of `lattice`.
+```{r}
+qplot(displ, hwy, data = mpg, facets = . ~ drv)
+```
+
+The `facets` argument takes the form of a ~-separated argument: the left is the variable that will split across the rows of our graph matrix (just a `.` here because there are not multiple rows in this graph matrix), and the right side contains the variable that will split across the columns (3 types of drivetrains in this case). This is a histogram type example:
+
+```{r}
+qplot(hwy, data = mpg, facets = drv ~ ., binwidth = 2)
+```
+
+
+### MAACS example
+This will be a more involved example using the Mouse Allergen and Asthma Cohort study from Johns Hopkins. Unfortunately, the dataset is not publicly available, so this is more or less fucking pointless...
+
+The data consists of 750 observations across 5 variables: `$id`, `$eno`, `$duBedMusM`, `$pm25`, `$mopos`. `$mopos` is a yes/no factor variable indicating sensitivity to mouse allergen.
+
+`qplot(log(eno), data = maacs)` just shows a histogram of the log of th `$eno` variable. We can also color code by the `$mopos` factor with `qplot(log(eno), data = maacs, fill = mopos)`. But this is a messy histogram and sort of corrupts the purpose of a histogram (stacking those densities is a bad idea), so instead we can show the 2 groups as actual densities with the `density` geom. The overall density of `log(eno)` can be shown with `qplot(log(eno), data = maacs, geom = "density")`, and the densities of each level of the `mopos` factor can be shown with `qplot(log(eno), data = maacs, geom = "density", color = mopos)`.
+
+#### scatterplots: eNO vs. PM_2.5
+We can start by just plotting the log of each variable as a scatterplot: `qplot(log(pm25), log(eno), data = maacs)`. We can then assign `mopos` groups different shapes: `qplot(log(pm25), log(eno), data = maacs, shape = mopos)`. But this is still really confusing and jumbled, so maybe color would be better: `qplot(log(pm25), log(eno), data = maacs, color = mopos)`.
+
+This is clearer than shapes, but still jumbled; we can't really learn anything from the graphic. So let's add regression lines for each group: `qplot(log(pm25), log(eno), data = maacs, color = mopos) + geom_smooth(method = "lm")`. This plots our color-coded scatterplot as we did before, but uses the `lm` method to add a linear regression to each group.
+
+Now, instead of overlapping the 2 groups on a scatterplot, we can break them out entirely via facets: `qplot(log(pm25), log(eno), data = maacs, facets = . ~ mopos) + geom_smooth(method = "lm")`.
+
+### Summary of `qplot()`
+`qplot` is nifty because it's pretty simple, lots of default options set. The syntax is somewhere between base and lattice. It's tough to customize too much; for that kind of power, you need to jump up to the `ggplot2` function.
+
+## `ggplot2`: electric boogaloo (advanced shit)
+The basic components of a ggplot2 plot are:
+
+- a data frame
+- aesthetic mapping: how data are mapped to color/size/etc.
+- geoms: geometric objects that you add like points/lines/tiles/shapes
+- facets: for conditional plots (like a 'break by')
+- stats: statistical transformations, like binning, quantiles, smoothing
+- scales: what scale and aesthetic mapping uses (relates color to gender, or size to count)
+- coordinate system
+
+In ggplot2, plots are built under the "artist's palette" model, meaning you start at the bottom and build them up in layers. You begin with the data, then maybe overlay a summary, then add the metadata and annotate.
+
+As an example, let's make this basic plot with the `qplot` function: `qplot(logpm25, NocturnalSympt, data = maacs, facets = . ~ bmicat, geom = c("points", "smooth"), method = "lm")`. There are 2 faceted graphs, because `bmicat` (bmi category) has 2 levels, normal and overweight. And we're plotting the scatterplot points and a linear regression smoother on each graph.
+
+Now we can build up the same graph with the `ggplot` function. This  example will demonstrate how `ggplot()` builds *plot objects* that can be stored and manipulated. First we create a plot object with `g <- ggplot(maacs, aes(logpm25, NocturnalSympt))`. This creates a plot object and maps the `x` and `y` variables. You can examine this object by calling `summary(g)`.
+
+We don't have a plot yet. We only have a ggplot object. If you want to plot it, you can call (or save as another object) `g + geom_point()`. This uses the `g` object from above, and tells it that we're wanting to use the 'points' geom to plot the variables we named in `g`.
+
+You can also add a smoother by calling `g + geom_point() + geom_smooth()` (or ` + geom_smooth(method = "lm")`). This is the same as saying "1. take the data I gave you in `g`, and 2. plot the points as a scatterplot, and 3. add a trend line".
+
+Now we might want to add facets. Use `g + geom_point() + facet_grid(. ~ bmicat) + geom_smooth(method = "lm")`.
+
+### Annotation
+There are some label functions: `xlab()`, `ylab()`, `labs()`, `ggtitle()`. He doesn't really go into detail on how these work. Same goes for the "geom" functions, which all have their own options to modify. If you're defining "global" plot options, use `theme()` (e.g. `theme(legend.position = "none")`). And there are 2 default themes to choose from: `theme_gray()` or `theme_bw()`.
+
+### Modifying Aesthetics, Labels, Smooth, Theme
+You can change things inside the `geom_point()` function like this: `g + geom_point(color = "steelblue", size = 4, alpha = 1/2)` or `g + geom_point(aes(color = bmicat), size = 4, alpha = 1/2)`. In the first example, color is assigned to the points in `geom_point()` and is static. In the next example, color is assigned to a variable (2 level factor) as a new aesthetic mapping inside `geom_point()`.
+
+Here's an example of how to modify the labels of a graph: `g + geom_point(aes(color = bmicat)) + labs(title = "MAACS Cohort") + labs(x = expression("log " * PM[2.5]), y = "Nocturnal Symptoms")`.
+
+And you can edit the smooth with `g + geom_point(aes(color = bmicat), size = 2, alpha = 1/2) + geom_smooth(size = 4, linetype = 3, method = "lm", se = FALSE)`. This give you a thick, dotted line (type = 3), and the `se` argument removes the confidence intervals.
+
+Finally, you can change the theme: `g + geom_point(aes(color = bmicat)) + theme_bw(base_family = "Times")`.
+
+### Axis Limits
+In the base system, if you have an outlier that you don't want to see, you can edit the `ylim` argument to set the limits of the y-axis. This shows you a line going off the chart, but you don't see the data point. In `ggplot2`, if you just use `+ ylim(-3, 3)`, you will actually subset the data and filter to only those points within that y range; i.e., the data will simply be missing from the plot.
+
+Instead, you should use `+ coord_cartesian(ylim = c(-3, 3))` to set the y-axis limits; this will not subset the data unexpectedly, and you'll still get your y-axis scaled correctly.
+
+### Cutting a Continuous Variable
+Let's examine how the relationship between PM25 and NocturnalSympt vary by BMI and NO2? Well, for this, we can use facets as we've done before. BMI is easy, it's a 2 level factor. But NO2 is continuous, so what to do with it?
+
+Well, we have to cut it into bins.
+
+```
+## calculate the tertile break points
+cutpoints <- quantile(maacs$logno2_new, seq(0, 1, length = 4), na.rm = TRUE)
+
+## cut the data at those points
+maacs$no2dec <- cut(maacs$logno2_new, cutpoints)
+
+## check out the new levels we just made
+levels(maacs$no2dec)
+```
+
+Now we construct a graph matrix:
+
+```
+## setup ggplot with data frame
+g <- ggplot(maacs, aes(logpm25, NocturnalSympt))
+
+## add layers
+g + geom_point(alpha = 1/3)
+     + facet_wrap(bmicat ~ no2dec, nrow = 2, ncol = 4)
+     + geom_smooth(method = "lm", se = FALSE, col = "steelblue")
+     + theme_bw(base_family = "Avenir", base_size = 10)
+     + labs(x = expression("log " * PM[2.5]))
+     + labs(y = "Nocturnal Symptoms")
+     + labs(title = "MAACS Cohort")
+```
+
+And remember, you can save your `g + ` objects as texted plots.
