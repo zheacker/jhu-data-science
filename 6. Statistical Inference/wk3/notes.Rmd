@@ -1,0 +1,365 @@
+---
+title: "6. Statistical Inference - Week 3 Notes"
+output: html_notebook
+---
+
+```{r chnkopts}
+opts_chunk$set(fig.align="center", comment=NA)
+```
+
+# Intervals, Testing, and P-values
+
+## T Confidence Intervals
+Last time we discussed creating confidence intervals using the CLT. They all looked sort of like:
+
+     estimate +- StandardNormalQuantile * SE_estimate
+
+     That standard normal quantile is known as the Z-Quantile
+
+Now we're going to talk about small samples. Specifically, we'll be talking making intervals of the form:
+
+     estimate +- T-Quantile * SE_estimate
+
+The `t` distribution has thicker tails than the normal distribution, and these intervals are (somehow) some of the most useful things in statistics. Generally, you should use the `t` interval if you have the choice between the `t` and Z intervals; as the sample size increases, they converge anyway.
+
+The `t` distribution was developed by William Gosset in 1908 under the pseudonym student, so this is referred to as the student's `t` test or the student's `t`-interval sometimes.
+
+The `t` distribution is only indexed by degrees of freedom, and as this parameter increases, it converges to the normal distribution.
+
+A `t`-interval is `X_bar +- t_(n-1) * S/sqrt(n)` where `t_(n-1)` is the relevant quantile.
+
+### Some notes about the `t`-interval
+
+* The `t`-interval _technically_ assumes that the data are IID normal, though it is robust to this assumption.
+* It works well when the data's distribution is roughly symmetric and mound shaped
+* Paired observations (like measurements of the same kind, separated in time) are often analyzed using the `t`-interval by taking differences (or differences in the log scale)
+* For large degrees of freedom, it converges to the standard normal quantiles
+* For skewed distributions, the spirit of the `t`-interval assumptions are violated
+     - You can take the log to address skewness, or use a different summary like the median
+* For highly discrete data, like binary or Poisson, other intervals are available
+
+### A `t`-interval example
+The `sleep` dataset in R is the original data that Gosset analyzed in his paper. It shows the increase in hours slept for 10 patients on 2 soporific drugs. R treats the data as 2 groups rather than pairs.
+
+```{r looksee}
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+data(sleep)
+head(sleep)
+ggplot(data = sleep, aes(x = group, y = extra, color = ID, group = ID)) + geom_path() + geom_point()
+```
+
+Let's split these out into separate groups, as we have in the plot above. Then we can find the change in hours slept per subject and set up our confidence interval.
+
+```{r splitr}
+g1 <- sleep$extra[1:10]; g2 <- sleep$extra[11:20]
+diff <- g2 - g1
+mn <- mean(diff)
+s <- sd(diff)
+n <- 10
+```
+
+We can manually construct the confidence interval in the format that we're used to, or we can use the `t.test()` function.
+
+```{r sleepcon}
+mn + c(-1, 1) * qt(.975, n - 1) * s/sqrt(n)
+t.test(diff)
+```
+
+Below are 2 equivalent formulations for the `t.test` function. In the first, we pass it `g1` and `g2` separately, and set `paired = TRUE`. This is the same as a t test on `diff`. Next, we can pass a formal model syntax: dependent variable `extra` is a function of (`~`) `group`, observations are paired, in the sleep dataset.
+
+```{r, eval=FALSE}
+t.test(g2, g1, paired = TRUE)
+t.test(extra ~ I(relevel(group, 2)), paired = TRUE, data = sleep)
+```
+
+### Independent group `t` confidence intervals
+Let's say we want to compare the mean blood pressure between 2 groups, those who received the medication, and those who received the placebo. This is known as an A/B test. We can't use the paired `t`-test because the groups are independent, unlike in the sleep study, where the measurements were repeated on the same subjects. Also, we may have different sample sizes.
+
+Below is the standard confidence interval (of a $(1 - \alpha) \times 100%$ level) for $\mu_y - \mu_x$:
+
+$$\bar{Y} - \bar{X} \pm t_{n_x + n_y -2, 1 - \alpha/2}S_p\left( \frac{1}{n_x} + \frac{1}{n_y} \right)^{1/2}$$
+
+Where $\bar{Y}$ is the mean of group 2 and $\bar{X}$ is the mean of group 1, $t$ is the relevant t-quantile, indexed by degrees of freedom. That index is given by $n_x + n_y - 2$ where $n$ is the number of observations in the respective group. The entire term beginning with $S_p$ is the standard error of the difference. (Note that as $n_x$ and $n_y$ increase, this term approaches 0.)
+
+$S_p^2$ is the "pooled variance" and its square root $S_p$ is the "pooled standard deviation." If we assume that the variance in the 2 groups is roughly the same (which is a reasonable assumption if you've performed randomization), then the variance of the difference should be an average of the variances of each group. However, if the groups have different sample sizes, you'd like to account for that. If the sample sizes are exactly equal, then the pooled variance is exactly the average of the variances of each group. The formula for pooled variance is:
+
+$$S_p^2 = {(n_x - 1)S_x^2 + (n_y - 1)S_y^2}/(n_x + n_y -2)$$
+
+Again, this assumes constant variance across the 2 groups. However, it may be wise to assume different variance across the groups. Let's do that.
+
+### Oral contraceptive blood pressure example
+We're looking at the blood pressure for 8 oral contraceptive users ($OC$) and 21 control subjects ($C$). Here are the means and standard deviations per group:
+
+* $\bar{X}_{OC} = 132.86 mmHg$, and $s_{OC} = 15.34 mmHg$
+* $\bar{X}_C = 127.44 mmHg$, and $s_C = 18.23 mmHg$
+
+Let's hammer out a manual calculation of the confidence interval, just to say we've done it.
+
+```{r tconf}
+sp <- sqrt(((8 - 1) * 15.34^2 + (21 - 1) * 18.23^2) / (8 + 21 - 2))
+tci <- 132.86 - 127.44 + c(-1, 1) * qt(.975, 8 + 21 - 2) * sp * (1/8 + 1/21)^0.5
+round(tci, 3)
+```
+
+This is our 95% confidence interval, so with 95% confidence, we can say that the true difference between the 2 groups' means is within that range. Since that range includes 0, it is possible that there is no true difference between the 2 groups' blood pressure.
+
+### Sleep data example - grouped, not paired
+Let's reconsider the sleep data, but let's pretend that it's grouped and randomized instead of paired. First we'll setup the manual calculation of the interval.
+
+```{r groupsleep}
+n1 <- length(g1); n2 <- length(g2)
+sp <- sqrt(((n1 - 1) * sd(g1)^2 + (n2 - 1) * sd(g2)^2)/(n1 + n2 - 2))
+mndiff <- mean(g2) - mean(g1)
+semndiff <- sp * sqrt(1/n1 + 1/n2)
+```
+
+Now we'll actually calculate that interval, and then compare it to the `t.test` function. The first `t.test` pretends that the data is **not** paired, and assumed the variance in the 2 groups is equal. This should perfectly match our manual calculation. The 2nd `t.test` simply shows how different the result is if we assume pairing. This is important when performing t-tests as it has a drastic effect on results.
+
+```{r sleepttests}
+rbind(
+tci <- mndiff + c(-1, 1) * qt(.975, n1 + n2 - 2) * semndiff,
+t.test(g2, g1, paired = FALSE, var.equal = TRUE)$conf,
+t.test(g2, g1, paired = TRUE)$conf
+)
+```
+
+### ChickWeight data example
+First let's plot the original data. Here's a quick look at the data, and a spaghetti plot (how fitting for data about diets).
+
+```{r plotcw, fig.width=11, fig.height=6}
+library(datasets)
+data("ChickWeight")
+head(ChickWeight, 10)
+ggplot(data = ChickWeight, aes(x = Time, y = weight, color = Diet, group = Chick, Diet)) + facet_grid(. ~ Diet) + geom_path() + stat_summary(aes(group = Diet), fun.y = mean, geom = "line", color = "black")
+```
+
+This dataset is tall and skinny, so let's tidy it up a bit, and add a `gain` feature that measures total weight gain.
+
+```{r thecw}
+widecw <- dcast(ChickWeight, Diet + Chick ~ Time, value.var = "weight")
+names(widecw)[-(1:2)] <- paste0("time", names(widecw)[-(1:2)])
+widecw <- mutate(widecw, gain = time21 - time0)
+```
+
+Now we can make a violin plot showing the distribution of `gain` for each diet:
+
+```{r violin, fig.width=8, fig.height=6}
+ggplot(data = widecw, aes(x = factor(Diet), y = gain)) + geom_violin(aes(fill = Diet), na.rm = TRUE)
+```
+
+It looks like the assumption of equal variance might not hold for diets 1 and 4, so let's do some t-testing to figure out if there's a difference here.
+
+In order to use the "model formulation" syntax in the `t.test` function, the explanatory variable (Diet, in this case) will be coerced into a factor, and it must have only 2 levels. So we need to subset the data to just diets 1 and 4, then we can t-test.
+
+```{r gainttests}
+widecw14 <- subset(widecw, Diet %in% c(1, 4))
+
+t.test(gain ~ Diet, paired = FALSE, var.equal = TRUE, data = widecw14)$conf
+t.test(gain ~ Diet, paired = FALSE, var.equal = FALSE, data = widecw14)$conf
+```
+
+Above, we show the confidence intervals associated with both assumptions about the 2 groups' variance: true, and false. We can see that we do indeed get different intervals, but that they both indicate lesser weight gain on diet 1 than on diet 4 (both intervals are entirely below 0).
+
+# Hypothesis testing
+Hypothesis testing is a key element of statistical science, and it's really important to understand this. Here, we're mostly concerned with making decisions using data. A null hypothesis represents the status quo. The null hypothesis says "nothing is going on here;" it's usually labeled $H_0$. This hypothesis is assumed true and statistical evidence is required to reject it in favor of an alternative hypothesis.
+
+## A first example
+Let's say a respiratory disturbance index of more than 30 events per hour is considered evidence of severe sleep disordered breathing. If we have 100 overweight subjects with other risk factors at a sleep clinic, maybe we find that the mean RDI is 32 events/hour with a standard deviation of 10.
+
+* $H_0: \mu = 30$
+* $H_a: \mu > 30$
+* where $\mu$ is the population mean RDI
+
+There are 4 potential outcomes here, each combination of the truth being $H_0$ or $H_a$, and the statistical methods deciding on $H_0$ or $H_a$. This leads to the following table:
+
+TRUTH     |    DECIDE    |    RESULT
+----------|--------------|--------------------------
+$H_0$     |    $H_0$     |    correctly accept null
+$H_0$     |    $H_a$     |    type I error
+$H_a$     |    $H_a$     |    correctly reject null
+$H_a$     |    $H_0$     |    type II error
+
+The type I and type II error rates are inversely related. Think of this in terms of a court of law. $H_0$, the null hypothesis, is innocence. We require evidence, as well as a *standard* on that evidence, to reject the null hypothesis and convict a person for a crime. If we set a very low standard, then rejecting the null hypothesis would be easy, and some innocent people would be wrongly convicted (type I errors). If the standard is too high, however, then rejecting the null hypothesis could be near impossible, so more guilty people would go free (type II errors).
+
+### Choosing a rejection region
+Let's go back to our sleep study example. A reasonable strategy might be to reject the null if $\bar{X}$ was larger than some constant, $C$. Typically, $C$ is chosen such that the probability of type I errors, $\alpha$, is 0.05. So again, $\alpha$ is the type I error rate, or the probability of rejecting the null hypothesis when the null hypothesis is correct.
+
+The standard error of the mean is $sd / \sqrt{n}$, or $10/\sqrt{100} = 1$. Under $H_0$, $\bar{X} ~ N(30, 1)$. That is, under the null hypothesis, $\bar{X}$ is normally distributed with mean $\mu$ equal to 30, and standard deviation 1. We want to choose $C$ so that $P(\bar{X} > C; H_0)$ is 5%. This means we're looking for the 95th percentile of the normal distribution, which we know is 1.645 standard deviations away from the mean. So $C = 30 + 1 \times 1.645 = 31.645$.
+
+So the probability that a $N(30, 1)$ random variable is larger than 31.645 is 5%. So our rule is "Reject $H_0$ when $\bar{X} \ge 31.645$" has the property that the probability of rejection is 5% when $H_0$ is true (for the $\mu_0$, $\sigma$, and $n$ given).
+
+In this example, we converted everything back to the actual numbers involved in the distribution, but the process really depends on the standard deviations. We reject $H_0$ when $\sqrt{n}(\bar{X} - \mu_0)/s \ge Z_{1 - \alpha}$.
+
+### T-tests
+Now let's imagine that our sample size is 16 instead of 100. Our test statistic is the sample mean minus the hypothesized mean (30, here), divided by the standard error of the mean, or:
+
+$$\frac{\bar{X} - 30}{s/\sqrt{16}}$$
+
+This statistic follows a T distribution with 15 degrees of freedom, in this case (under $H_0$). Under $H_0$, the probability that it is larger than the 95th percentile of the T distribution is 5%, and that percentile is $T_{15} = 1.7531$, which we obtain from `qt(.95, 15)`.
+
+We can compute this test quantity as $\sqrt{16}(32 - 30)/10 = 0.8$. This is lower than 1.753, which is the 95th percentile, so this value is not in the upper 5% of the T distribution. Therefore, we fail to reject $H_0$.
+
+#### Two-sided tests
+What if we wanted to reject the null hypothesis if the mean was too large *or* too small? In this case, $H_a: \mu \ne 30$. This basically amounts to testing whether or not our test statistic falls within or outside of the 2.5% - 97.5% range, rather than the 0% - 95% range. We can identify the quantiles of that range with `qt(.025, 15)` and `qt(.975, 15)`, respectively. Those values correspond to `r qt(.025, 15)` and `r qt(.975, 15)`. 0.8 is not outside of those values, so we fail to reject $H_0$ in this case, too.
+
+### `t.test` output
+Thankfully, we don't actually have to do this manually all the damn time. Let's look at some output from R's `t.test` function. Let's look at the surface temp and temperature variables from the `nasa` dataset. This dataset has a weird shape, and I don't really care about that, so I'm just casting these as long-ass vectors. Let's plot the density of each variable.
+
+```{r tmpplot}
+data(nasa)
+df <- data.frame(st = as.vector(nasa$m$surftemp), tmp = as.vector(nasa$m$temperature))
+rng <- range(df$st, df$tmp)
+ggplot(data = df, aes(x = seq(rng[1], rng[2], length = dim(df)[1]))) + geom_density(aes(x = st), color = "royalblue") + geom_density(aes(x = tmp), color = "orangered")
+t.test(df$tmp - df$st)
+```
+
+In the results of that `t`-test we can see the `t` value is 117.78 and the degrees of freedom value is 41471. The null hypothesis, remember, is that the difference between the 2 samples is 0, so the mean of 1 minus the other would be 0. The `t`-test indicates that the mean of the difference of the 2 samples is 1.69, and we can be 95% certain that the *actual* mean lies between 1.662 and 1.718. That confidence interval does not include 0, so there is only a small chance that the null hypothesis is true (that the samples are the same). Our p-value is way smaller than 0.05, which is to say that the probability that the 2 samples are explained by the null hypothesis is way less than 5%.
+
+### Summary of what the t-test is doing
+
+**!!!ATTENTION, ATTENTION!!!**
+Everything between here and the next **ATTENTION** is wrong. This was a bit of a boondoggle, and I went down some weird rabbit holes. **NOTE**: t-test are used to compare **1 sample** against another **1 sample**. Below, I delved into ideas around *resampling*, which are covered in next week's lecture.
+
+You're asking whether 2 groups are significantly different or not. So you look at the difference in the means of the 2 groups. Take the difference of the 2 groups, then take repeated samples of those differences and plot that density. If mean 1 and mean 2 are the same, this will be centered around 0 (because $5 - 5 = 0$). The mean of *this* distribution is the difference between groups 1 and 2. The confidence interval tells you where this mean most likely resides.
+
+This is exactly what we're doing below. Subtract the 2 groups, then take 10,000 samples and find the mean of each, plot that distribution of means along with the confidence interval from the `t`-test (the `t`-test acts on the 2 groups of raw data with `paired = var.equal = FALSE`).
+
+```{r tdemo}
+# subtract, sample, plot
+
+# number of samples
+n <- 10000
+# sample size
+s <- 10000
+diff <- df$tmp - df$st
+means <- vector("numeric", n)
+for(i in 1:n) {
+     means[i] <- mean(sample(diff, s))
+}
+
+t <- t.test(df$tmp, df$st)
+t$conf.int
+
+qplot(means, geom = "density") + geom_vline(xintercept = t$conf.int)
+```
+
+## Two group testing
+So I kind of jumped ahead back there, but this is where the lecture formally delves into 2-group testing. Previously, we've been testing whether the mean of a single group is equal to 0. Now, we'll test whether the means of 2 groups are equal. This is done by subtracting the 2 means and determining if the result is 0, which makes it mostly the same as a 1-group $t$-test.
+
+Let's use the chick weight dataset again.
+
+```{r cw}
+str(widecw14)
+```
+
+We've already subset the data into just diets 1 and 4, so now we can run a $t$-test via the model formulation (dependent ~ independent). The `t.test` function requires that the independent variable have 2 levels (I'm assuming factor coercion happens by default). Here's the `t`-test:
+
+```{r cwttest}
+t <- t.test(gain ~ Diet, paired = FALSE, var.equal = FALSE, data = widecw14)
+t
+```
+
+We set `paired = FALSE` because the chicks in diet 1 are unrelated to the chicks in diet 2. And we assumed the variances are different, which, as we saw earlier, is likely the case. Now here's the tricky part. We have 2 groups of chickens on 2 different diets. Each group has a mean weight gain $\mu$, and we want to find out if those $\mu$'s are different.
+
+What I've done below is randomly sampled the data we have for those 2 groups, at several different rates. I've take the mean of each sample, then subtracted those means to give a distribution of the difference of the means of all of the samples of the 2 groups.
+
+The thing is, at each different sampling rate, the distribution can be really variable (small sample sizes) or more precise (larger sample sizes). I've plotted the `t.test` function's confidence interval for comparison.
+
+```{r multipass, fig.width=10, fig.align="center"}
+n <- 10000
+sna <- 3
+snb <- 6
+snc <- 9
+spd <- .25
+spe <- .5
+spf <- .75
+gtype <- "histogram"
+
+mnsa1 <- vector("numeric", n)
+mnsa4 <- mnsa1
+for (i in 1:n) {
+     mnsa1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], sna), na.rm = TRUE)
+     mnsa4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], sna), na.rm = TRUE)
+}
+diffa <- mnsa1 - mnsa4
+
+mnsb1 <- vector("numeric", n)
+mnsb4 <- mnsb1
+for (i in 1:n) {
+     mnsb1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], snb), na.rm = TRUE)
+     mnsb4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], snb), na.rm = TRUE)
+}
+diffb <- mnsb1 - mnsb4
+
+
+mnsc1 <- vector("numeric", n)
+mnsc4 <- mnsc1
+for (i in 1:n) {
+     mnsc1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], snc), na.rm = TRUE)
+     mnsc4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], snc), na.rm = TRUE)
+}
+diffc <- mnsc1 - mnsc4
+
+
+mnsd1 <- vector("numeric", n)
+mnsd4 <- mnsd1
+for (i in 1:n) {
+     mnsd1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], spd * round(length(widecw14[widecw14$Diet == 1, "gain"]))), na.rm = TRUE)
+     mnsd4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], spd * round(length(widecw14[widecw14$Diet == 4, "gain"]))), na.rm = TRUE)
+}
+diffd <- mnsd1 - mnsd4
+
+
+mnse1 <- vector("numeric", n)
+mnse4 <- mnse1
+for (i in 1:n) {
+     mnse1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], spe * round(length(widecw14[widecw14$Diet == 1, "gain"]))), na.rm = TRUE)
+     mnse4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], spe * round(length(widecw14[widecw14$Diet == 4, "gain"]))), na.rm = TRUE)
+}
+diffe <- mnse1 - mnse4
+
+
+mnsf1 <- vector("numeric", n)
+mnsf4 <- mnsf1
+for (i in 1:n) {
+     mnsf1[i] <- mean(sample(widecw14[widecw14$Diet == 1, "gain"], spf * round(length(widecw14[widecw14$Diet == 1, "gain"]))), na.rm = TRUE)
+     mnsf4[i] <- mean(sample(widecw14[widecw14$Diet == 4, "gain"], spf * round(length(widecw14[widecw14$Diet == 4, "gain"]))), na.rm = TRUE)
+}
+difff <- mnsf1 - mnsf4
+
+
+pa <- qplot(diffa, geom = gtype, main = "Sample 3") + geom_vline(xintercept = t$conf.int)
+pb <- qplot(diffb, geom = gtype, main = "Sample 6") + geom_vline(xintercept = t$conf.int)
+pc <- qplot(diffc, geom = gtype, main = "Sample 9") + geom_vline(xintercept = t$conf.int)
+pd <- qplot(diffd, geom = gtype, main = "Sample 25%") + geom_vline(xintercept = t$conf.int)
+pe <- qplot(diffe, geom = gtype, main = "Sample 50%") + geom_vline(xintercept = t$conf.int)
+pf <- qplot(difff, geom = gtype, main = "Sample 75%") + geom_vline(xintercept = t$conf.int)
+
+library(gridExtra)
+
+grid.arrange(pa, pb, pc, pd, pe, pf, ncol = 3, nrow = 2)
+```
+
+The technique above assumes that the *populations* are equivalent to all of the data that I actually have (20 chicks in diet 1, 10 chicks in diet 4). If the populations have size $N = 20$ and $N = 10$, respecitively, then what I've done above is equivalent to taking a bunch of *samples* of those populations in an effort to estimate the difference in the means of the 2 populations. However, that would be pointless, because I can calculate the difference in the means of the populations and express that difference explicitly; it doesn't need to be estimated.
+
+Here's what I missed: my data points ($N = 20$ and $N = 10$) were **not** population values; they were *sample* values ($n = 20$ and $n = 10$). So I cannot take repeated random samples of *those samples*.
+
+And yes, that took me 2 and a half days to realize; I'm slow, but I get there...
+
+**!!!ATTENTION, ATTENTION!!!**
+Here ends the boondoggle. If you're looking for info on resampling, go read week 4's material.
+
+# P-values
+Basically, a p-value answers the question: If we assume the null hypothesis, i.e. nothing is going on, then how unusual is it to see the estimate that we actually got?
+
+If the p-value is small, it's effectively saying that the probability of seeing a test statistic *this* extreme is really small under the null hypothesis (so your null hypothesis might be wrong). Conversely, a high p-value says that the probability of seeing this result under the null hypothesis is relatively high (so the null hypothesis largely explains this result).
+
+Suppose you got a $T$ statistic of $2.5$ for 15 degrees of freedom testing $H_0: \mu = \mu_0$ versus $H_a : \mu > \mu_0$. What's the probability of getting a $T$ statistic as large as $2.5$?
+
+```{r pval}
+pt(2.5, 15, lower.tail = FALSE)
+```
+
+You can also think of p-values as the attained significance level, which is to say that the p-value is the smallest value of alpha (corresponding to the largest confidence interval) for which you would still reject the null hypothesis. If your p-value is 0.012, then if you were to set $\alpha = 0.012$, you would still reject the null hypothesis.
