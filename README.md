@@ -13,4 +13,7 @@ This course is a brief into to R, RStudio, and the basic objects and functions u
 ## Course 3: Getting & Cleaning Data
 This course covers reshape2, dplyr, etc., the best dataset manipulation tools.
 
+## Course 4: Exploratory Data Analysis
+Tools for exploring data, and how to use visualization to help.
+
 Additional courses will be posted as they're completed.
