@@ -13,13 +13,13 @@ This is the 'bread and butter' technique for visualizing high-dimensional data. 
 
 Well, we'll answer all those questions here, specifically as they relate to hierarchical clustering.
 
-Hierarchical clustering is an agglomerative approach. You start with the data and let groups define themselves. You sort of find the 2 "closest" things, then put them together, then find the next closest, etc. But you have to be able to define the "distance" between 2 things in the first place, and you need a merging method, a way to represent thoose first 2 data points that you grouped as a new "merged point." The result is a tree showing how close things are to each other.
+Hierarchical clustering is an agglomerative approach. You start with the data and let groups define themselves. You sort of find the 2 "closest" things, then put them together, then find the next closest, etc. But you have to be able to define the "distance" between 2 things in the first place, and you need a merging method, a way to represent those first 2 data points that you grouped as a new "merged point." The result is a tree showing how close things are to each other.
 
 The **most important aspect** of this method is the way you define close. You need a distance metric that makes sense for your problem, otherwise it's garbage in > garbage out. Some common distance/similarity measures are:
 
 * euclidean distance (for continuous)
 * correlation similarity (for continuous)
-* manhattan distance (for binary)
+* Manhattan distance (for binary)
 
 ## Euclidean distance
 You put your points on a coordinate system of $N$ dimensions and you calculate the distance: `sqrt(((x2 - x1)^2) + ((y2 - y1)^2) + ... + ((z2 - z1)^2))`.
@@ -27,7 +27,7 @@ You put your points on a coordinate system of $N$ dimensions and you calculate t
 $$\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2 + ... + (z_2 - z_1)^2}$$
 
 ## Manhattan distance
-This is the "city block" distance where every step between 2 points must be along the direction of a unit vector (i.e. you can't move diagonally, only along the $X$ and $Y$ axes). The manhattan distance is:
+This is the "city block" distance where every step between 2 points must be along the direction of a unit vector (i.e. you can't move diagonally, only along the $X$ and $Y$ axes). The Manhattan distance is:
 
 $$abs(x_2 - x_1) + abs(y_2 - y_1) + ... + abs(z_2 - z_1)$$
 
@@ -149,7 +149,7 @@ image(t(dataMatrix)[, nrow(dataMatrix):1], yaxt = "n")
 image(t(dataMatrix)[, order(brolin$cluster)], yaxt = "n")
 ```
 
-Remember that kmeans is not deterministic and can be sensitive to change. Accordingly, it's usually a good idea to investigate various numbers of clusters and to run many iterations with different starting points. This can help to ensure that you're not observing an unstable abberation.
+Remember that kmeans is not deterministic and can be sensitive to change. Accordingly, it's usually a good idea to investigate various numbers of clusters and to run many iterations with different starting points. This can help to ensure that you're not observing an unstable aberration.
 
 # Principal component analysis (PCA) and singular value decomposition (SVD)
 These techniques are important to both the exploratory phase, as well as the more formal modeling phase. Let's start with random data:
@@ -377,9 +377,9 @@ faceurl <- "https://github.com/jtleek/dataanalysis/raw/master/week4/001clusterin
 ## create the data directory if necessary
 if(!dir.exists(datapath)) {
      dir.create(datapath)
-     print("Created /data directory")
+     print("Created data directory")
 } else {
-     print("/data directory already exists")
+     print("data directory already exists")
 }
 
 if(!file.exists(facepath)) {
@@ -402,7 +402,7 @@ svdf <- svd(scale(faceData))
 plot(svdf$d^2/sum(svdf$d^2), pch = 19, xlab = "Singular Vector", ylab = "% Variance Explained")
 ```
 
-So we can see that the first 4 or 5 vectors explain pretty much all of the data. This is an important point: there are a lot of features present here, but only 4 or 5 actually contribute significant amounts of new information. This is why SVD is used for data compression, and why PCA is used to identify *new* pseudo-features that lower dimensionality.
+So we can see that the first 4 or 5 vectors explain pretty much all of the data. This is an important point: there are a lot of features present here, but only 4 or 5 actually contribute significant amounts of new information. This is why SVD is used for data compression, and why PCA is used to identify *new* pseudo-features that lower dimensional.
 
 So if those vectors contain most of the information, then we should be able to recreate the face image with only those vectors. It won't perfectly match the original image, but it will be close. Below, we have some images that were created exactly that way, using a variable number of singular vectors. The "1v" plot only uses the 1st singular vector, the "5v" uses the first 5, and the "10v" uses the first 10. Finally, there's the "OG" plot showing the original face.
 
@@ -454,7 +454,7 @@ pal(2)
 pal(10)
 ```
 
-## The `RColorBrewer` package
+### The `RColorBrewer` package
 This package provides a ton of good color palettes to use. Developed by and based on the research of Cynthia Brewer, Penn State. There are 3 types of palettes:
 
 * sequential: good for ordinal data, either continuous or discrete
@@ -481,3 +481,12 @@ y <- rnorm(10000)
 smoothScatter(x, y)
 ```
 
+### Random color notes
+The `rgb` function can be used to produce any RGB proportions, and it can add transparency via the `alpha` argument. 0 is invisible, 1 is opaque. Here's an example of transparency.
+
+```{r}
+plot(x, y, pch = 19)
+plot(x, y, col = rgb(0, 0, 0, 0.2), pch = 19)
+```
+
+There is also the `colorspace` package. We don't get to know what it is. Exercise for the reader. Mkay.
