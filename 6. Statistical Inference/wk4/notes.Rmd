@@ -1,0 +1,466 @@
+---
+title: "6. Statistical Inference - Week 4 Notes"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", fig.width = 10)
+```
+
+```{r loadpkgs, echo=FALSE}
+loadlist <- c("ggplot2", "gridExtra", "UsingR", "wesanderson")
+suppressMessages(sapply(loadlist, library, character.only = TRUE))
+```
+
+# Power
+Power is the probability of rejecting the null hypothesis when it is false, which is the correct call. So power is good, you want more power. A type II error is when you fail to reject the null hypothesis when it is false; this probability is usually called $\beta$. So then we define $Power = 1 - \beta$.
+
+So $\alpha$ is the type I error rate, $\beta$ is the type II error rate, and $Power = 1 - \beta$. Note that we don't usually refer to $\beta$ explicitly, instead we will refer to its compliment, power.
+
+Let's consider the sleep example from week 3 again. Reread those notes if you need a refresher. In this example, we're testing $H_0: \mu = 30$ versus $H_a: \mu > 30$. So the power is:
+
+$$P\left(\frac{\bar{X} - 30}{s/\sqrt{n}} > t_{1 - \alpha, n - 1}; \mu = \mu_a \right)$$
+
+That is, power is the probability that our t-statistic is greater than the upper $(1 - \alpha)^th$ quantile of the t distribution (maybe under the alternative hypothesis?). Maybe some examples will clear this up...
+
+## Power example (Gaussian data)
+Let's assume that our sample mean $\bar X$ is exactly normally distributed. Then we reject if $\frac{\bar{X} - 30}{\sigma/\sqrt{n}} > z_{1 - \alpha}$, if our $Z$ statistic is greater than the $Z_{1-\alpha}$ quantile. This is equivalent to saying we reject if $\bar{X} > 30 + Z_{1-\alpha}\frac{\sigma}{\sqrt{n}}$ (sample mean is greater than 30 plus Z(1-alpha) times standard error).
+
+* Under $H_0 : \bar{X} \sim N(\mu_0, \sigma^2/n)$
+* Under $H_a : \bar{X} \sim N(\mu_a, \sigma^2/n)$
+
+So we can write out, in R code, what our power would be:
+
+```{r power, eval=FALSE}
+# get the Z(1 - alpha) quantile
+z <- qnorm(1 - alpha)
+# find the probability of an instance of X_bar being > 30+Z*SE when the distribution mean is mua
+pnorm(mu0 + z * sigma/sqrt(n), mean = mua, sd = sigma/sqrt(n), lower.tail = FALSE)
+```
+
+Notice that as `mua` moves closer to/away from `mu0`, the probability function changes. Let's demonstrate this. First, if we set the mean equal to `mu0`, which is our null hypothesis mean, then this probability is exactly $\alpha$.
+
+```{r pwrdemo}
+mu0 = 30
+mua = 32
+sigma = 4
+n = 16
+alpha = 0.05
+z <- qnorm(1 - alpha)
+pnorm(mu0 + z*sigma/sqrt(n), mean = mu0, sd = sigma/sqrt(n), lower.tail = FALSE)
+```
+
+But if we instead ask for the probability when the mean is `mua`, we get:
+
+```{r mua}
+pnorm(mu0 + z*sigma/sqrt(n), mean = mua, sd = sigma/sqrt(n), lower.tail = FALSE)
+```
+
+This means that there is a 64% chance of finding this $\bar X$ if the distribution's mean is 32, as in the alternative hypothesis.
+
+## Power curves
+Here are some power curves:
+
+```{r pcurves}
+means <- seq(30, 35, by = 0.1)
+ns <- c(8, 16, 32, 64, 128)
+
+makeCurve <- function(n) {
+     sapply(
+          means, function(x) {
+               pnorm(mu0 + z*sigma/sqrt(n), mean = x, sd = sigma/sqrt(n), lower.tail = FALSE)
+          }
+     )
+}
+
+ps <- sapply(ns, makeCurve)
+dim(ps) <- NULL
+repns <- rep(ns, each = length(means))
+df <- data.frame(n = factor(repns), mua = rep(means, length(ns)), power = ps)
+
+ggplot(data = df, aes(x = mua, y = power, color = n)) + geom_line()
+```
+
+So what do these curves mean? Well, power starts off in the same point for all values of $n$ when $\mu_a = \mu_0$. From there, power increases toward 1 as our alternative hypothesis mean gains distance from $\mu_0$. This means that we have a greater chance of detecting a difference between $\mu_0$ and $\mu_a$ if the difference between them is large in the first place.
+
+We can also see that increasing $n$ can drastically improve our power. Look at $\mu_a = 31$. If $n = 8$, we have a power of 0.15. But by increasing $n$ to 128, power jumps to 0.87. This means that greater sample sizes help us detect smaller differences between means.
+
+## Power Graphs
+So there are 4 elements at work when we talk about power: the population standard deviation $\sigma$, the alternative hypothesis mean $\mu_a$, sample size $n$, and the significance level $\alpha$. Below, we're going to examine the effects of changing each of those values.
+
+We've constructed a plotting function to make this easier. Notice that the first distribution is centered on $\mu_0$ with standard deviation based on the population standard deviation and sample size. The second distribution is similar, only centered on $\mu_a$. The vertical line is our significance demarcation. It's the real value of the $Z$ statistic (at 5% confidence, in this case). Also we're using Wes Anderson colors, so fuck yeah.
+
+```{r myplot}
+mu0 <- 30
+myplot <- function(sigma, mua, n, alpha) {
+     wap <- wes_palette("Zissou")
+     g <- ggplot(data.frame(mu = c(27, 36)), aes(x = mu))
+     g <- g + stat_function(fun = dnorm, geom = "line",
+                            args = list(mean = mu0, sd = sigma / sqrt(n)), size = 1.25, color = wap[3])
+     g <- g + stat_function(fun = dnorm, geom = "line",
+                            args = list(mean = mua, sd = sigma / sqrt(n)), size = 1.25, color = wap[1])
+     xline <- mu0 + qnorm(1 - alpha) * sigma / sqrt(n)
+     g <- g + geom_vline(xintercept = xline, size = 1.25, color = wap[5])
+     g
+}
+```
+
+Here's that plot with the baseline values that we've been considering thus far: $\mu_0 = 30$, $\mu_a = 32$, $\sigma = 4$, $n = 16$, and $\alpha = 0.05$. Let's first walk through it and make sure we understand each piece.
+
+```{r basicplot}
+myplot(4, 32, 16, 0.05)
+```
+
+Under the null hypothesis, the yellow distribution represents the distribution of the sample mean. It's centered on $\mu_0$, the null hypothesis mean, which is 30, and it has variance $\sigma^2/n$. Under the alternative hypothesis, the blue distribution is centered on $\mu_a$, 32 here. Its variance is also $\sigma^2/n$. The red line identifies our rejection zone. Under $H_0$ (yellow), the probability of getting a value larger than the red line is 5% (so if we get a value in that region, we reject $H_0$).
+
+Under $H_a$ (blue) the region above the red line is $Power$, and the region below the red line is $1 - Power$, or the type II error rate. Take a moment to think about this. Power is the probability of rejecting $H_0$ when $H_0$ is false. Power is when we get a value above the red line, but since $H_0$ is false in this case, power is the area *under the blue curve* and above the red line. It's the probability *under $H_a$* that we get a value that is in the rejection zone *under $H_0$*. $1 - power$, then, is the probability under $H_a$ that is still in the acceptable region of $H_0$. That means we fail to reject $H_0$ when $H_a$ is the truth, thus it's the type II error rate.
+
+### change $\alpha$
+First let's look at changing $\alpha$. Below, we show $\alpha = 0.1$ and $\alpha = 0.01$, or 10% and 1% respectively. We can see that by increasing our significance limit to 10%, we increase power and decrease the type II error rate. But since we've increases the size of our rejection zone, we've increased our type I error rate (rejecting $H_0$ when it's true).
+
+Conversely, if we set $\alpha = 0.01$, then our rejection region is tiny. The power decreases, the type II error rate increases, and the type I error rate decreases. Values must be extreme for us to reject $H_0$, and less extreme values could still be probable under $H_a$.
+
+```{r alpha, echo=FALSE, fig.width=12, fig.height=5}
+grid.arrange(myplot(4, 32, 16, 0.1), myplot(4, 32, 16, 0.01), ncol = 2, nrow = 1)
+```
+
+### Change $\sigma$
+Now let's change $\sigma$, the population standard deviation. When $\sigma = 1$, everything is rosy. We basically have no type II error rate, because no $H_a$ values lie below the red line. Note that this happens because our significance level is defined in terms of standard errors from the mean of $H_0$. On the other hand, if $\sigma = 8$, then our power is very low, and type II error rate is very high. This is because the distributions are so similar. A lot of data points under $H_a$ fall within the acceptable levels under $H_0$, so it's tough to distinguish them apart.
+
+```{r sigma, echo=FALSE, fig.width=12, fig.height=5}
+grid.arrange(myplot(1, 32, 16, 0.05), myplot(8, 32, 16, 0.05), ncol = 2, nrow = 1)
+```
+
+### Change $\mu_a$
+If we alter $\mu_a$, the results are pretty predictable. When the means of the 2 groups are very close, they are very difficult to identify because they have so much data in common. As the means of the 2 groups get farther from one another, it becomes easier to distinguish between them.
+
+```{r muaplot, echo=FALSE, fig.width=12, fig.height=5}
+grid.arrange(myplot(4, 31, 16, 0.05), myplot(4, 34, 16, 0.05), ncol = 2, nrow = 1)
+```
+
+### Change $n$
+Finally, what if we change $n$? Remember that as we increase sample size we decrease variability. So if $n$ is very low, say 4, then our distributions spread wider and power decreases. In $n = 50$, then the distributions narrow and power increases.
+
+```{r n, echo=FALSE, fig.width=12, fig.height=5}
+grid.arrange(myplot(4, 32, 4, 0.05), myplot(4, 32, 50, 0.05), ncol = 2, nrow = 1)
+```
+
+## Notes about power
+So $\beta$ is our type II error rate, which means $power = 1 - \beta$. Then
+
+$$1 - \beta = P\left(\bar{X} > \mu_0 + z_{z - \alpha} \frac{\sigma}{\sqrt{n}} ; \mu = \mu_a\right)$$
+
+That is, power is the probability that $\bar X$ is greater than $mean + Z \times SE$ calculated under the alternative hypothesis ($\bar X ~ N(\mu_a, \sigma^2 / n)$.
+
+* Unknowns: $\mu_a, \sigma, n, \beta$
+* Knowns: $\mu_0, \alpha$
+* If you specify any 3 of the unknowns you can solve for the last one
+
+Power is normally used for planning studies; the unknowns that are usually of most interest are $n$ and $\beta$. You can specify $\mu_a$ and assume $\sigma$, and you might want to know what $n$ is necessary for a $\beta$ that you want. Or what power ($\beta$) you can achieve if you can only afford a study of size $n$.
+
+The calculation for $H_a : \mu < \mu_0$ is similar and straightforward.
+
+For $H_a: \mu \ne \mu_0$ calculate the one sided power using $\alpha/2$. This isn't perfectly correct because it can miss some information about the lower tail, but this only matters when the means are very close together or perhaps when variances aren't equal.
+
+We know that:
+
+* power goes up as $\alpha$ goes up
+* power of a 1 sided test is greater than that of a 2 sided test (cause we did $\alpha/2$)
+* power goes up as the means get farther apart
+* power goes up as $n$ goes up
+* power goes up as $\sigma$ goes down
+
+It's interesting to note that power can sometimes only depend on $\frac{\sqrt{n}(\mu_a - \mu_0)}{\sigma}$, the difference in means divided by the standard error. The quantity $\frac{\mu_a - \mu_0}{\sigma}$ is called the effect size. It's the difference in means in standard deviation units.
+
+## T-test power
+We never actually calculate power as described above. Those are just conceptual tools to help you grasp power. Actually we just use the `power.t.test()` funcion in R. But first, a bit about t-test power.
+
+A t-test's power is
+
+$$P\left(\frac{\bar{X} - \mu_0}{S/\sqrt{n}} > t_{1 - \alpha, n - 1}; \mu = \mu_a\right)$$
+
+That is, the probability that our $T$ statistic is greater than the associated $t$ quantile under the alternative hypothesis. It turns out that the $T$ statistic above *does not* follow a t-distribution under $\mu_a$; instead, it follows the non-central t-distribution, which we don't delve into here. But basically you have to evaluate that non-central distribution if you're examining $\mu_a$, and $\mu_a \ne \mu_0$, and this is exactly what `power.t.test` does.
+
+### Some `power.t.test` examples
+Let's start with `power.t.test(n = 16, delta = 2, sd = 4, type = "one.sample", alt = "one.sided")$power`, which gives the result `r round(power.t.test(n = 16, delta = 2, sd = 4, type = "one.sample", alt = "one.sided")$power, 3)`. The `type` is 1 sample, because we've provided the `delta` argument. Remember, you can supply 2 samples and the difference will be taken automatically and a 1 sample test is run, or you can provide the difference yourself and run a 1 sample test. The `alt` argument is 1 sided, which means we are testing $H_a:\mu > \mu_0$.
+
+You can vary `delta` and `sd` to prove that power only depends on $\frac{\mu_a - \mu_0}{\sigma}$. `power.t.test(n = 16, delta = 2/4, sd = 1, type = "one.sample", alt = "one.sided")$power` and `power.t.test(n = 16, delta = 100, sd = 200, type = "one.sample", alt = "one.sided")$power` both yield `r power.t.test(n = 16, delta = 2, sd = 4, type = "one.sample", alt = "one.sided")$power` also.
+
+You can provide any subset of the variables involved in a power equation, and `power.t.test` will calculate the missing value. For instance, `power.t.test(power = 0.8, delta = 2, sd = 4, type = "one.sample", alt = "one.sided")$n` will tell you what sample size you would need to meet the other criteria (it's `r power.t.test(power = 0.8, delta = 2, sd = 4, type = "one.sample", alt = "one.sided")$n`).
+
+# Multiple comparisons
+Hypothesis testing/significance testing is often overused. People do things like p-hack and that totally misses the point. Calculating multiple p-values and only report the best one. Or report all the p-values but claim the best ones matter. So we need to correct for multiple testing. The 2 main components of this correction will be
+
+* an error measure that you want to control
+* a correction, or statistical method, to control that error measure
+
+The 3 eras of statistics. First, we applied census-level data to simple but important questions. Are there more female or male births? Is the rate of insanity rising? Then there were the mathematical heavyweights that developed sophisticated inference techniques to wring out as much value as possible from the limited data that was available (remember, data used to be labor-intensive and expensive). Now, we're in the era of big data. Data is literally everywhere and it's easy to perform shit tons of tests on that data. If there is a small error in every test, it's possible that those errors will eventually pile up and lie to us.
+
+The XKCD jellybean comic is the epitome of this problem. If you allow for 5% error in each test, and you conduct 20 tests, it makes sense that 5% of the time, you will stumble upon significance (1 of your test will show significance because you allowed that 5% window).
+
+It's important to note that significance testing and hypothesis testing are not the same thing. Significance testing is finding the p-value, the level of significance of some instance of a random variable. Hypothesis testing is when you look at that p-value and make some judgement on it to determine whether it is explained by or calls for rejection of some hypothesis.
+
+## Error measures
+This lecture uses some slightly different notation for the results of hypothesis tests, so below is a table of outcomes as well as explanations of error measures.
+
+     $$                  $\beta = 0$         $\beta \ne 0$       HYPOTHESIS
+---------------------    ----------------    ----------------    -----------
+claim $\beta = 0$        $U$                 $T$                 $m - R$
+claim $\beta \ne 0$      $V$                 $S$                 $R$
+claims                   $m_0$               $m - m_0$           $m$
+
+So our correct calls are labeled $U$ and $S$, type I errors are $V$, and type II errors are $T$. Remember, type I is claiming a relationship when there is none; type II is claiming no relationship when there is one. $m$ is the total number of hypotheses tested. $m_0$ is the number of true null hypotheses tested, which is unknown. Hence, $m - m_0$ is the number of true alternative hypotheses.
+
+In the context of multiple testing, there are a few error rates to consider. The first is the false positive rate, the rate at which false results ($\beta = 0$) are called significant ($\beta \ne 0$): $E\left[\frac{V}{m_0}\right]$. (This is closely related to the type I error rate; see [wiki](https://en.wikipedia.org/wiki/False_positive_rate) for details.) This is just the expected value of false positives $V$ out of all true null hypotheses $m_0$. (How often do we detect significance when nothing is happening?)
+
+The family wise error rate - FWER - is the probability of at least 1 false positive: $P(V \ge 1)$. As $m$ increases, the FWER usually converges to 1.
+
+There is also the false discovery rate, FDR. This is the rate at which claims of significance are false: $E\left[\frac{V}{R}\right]$, or the expected value of false positives $V$ out of all the times we claim significance. (How often are we wrong when we claim significance?)
+
+## Controlling error
+
+### Controlling the false positive rate
+Let's start with the false positive rate. If p-values are correctly calculated, and you call all $P < \alpha$ significant, then the false positive rate is controlled by $\alpha$. This is intuitive, because $\alpha$ is defined as the type I error rate that you're willing to accept. This is not an ideal measure because in cases where you're testing very many hypotheses, you can still wind up with quite a lot of false positives just by volume of tests alone.
+
+### Controlling the family wise error rate
+So the false positive rate can still be pretty high given lots of tests. We can further constrain our error by controlling the family wise error rate, which is the rate of getting even 1 false positive. We can do this with the [Bonferroni Correction](https://en.wikipedia.org/wiki/Bonferroni_correction), which is the oldest method for controlling this error. This method let's you control FWER at the level of $\alpha$ such that $P(V \ge 1) < \alpha$. This is a pretty stringent requirement. You calculate your p-values normally, and set $\alpha_{fwer} = \alpha/m$, where $m$ is the number of tests. You then reconsider your p-values and call any p-value less than $\alpha_{fwer}$ significant. This is an easy correction to perform, but it is also very conservative.
+
+### Controlling the false discovery rate
+This is the most popular and "sexiest" correction out there. As usual, science is primarily concerned with discovery, and so limiting false discovery gets a lot of attention. If you perform $m$ tests, and you want to control the FDR at the level of $\alpha$, you calculate your p-values normally. Then you order those p-values from smallest to largest, $P_{(1)}, ..., P_{(m)}$, and you call any p-value $P_{(i)} \le \alpha \times \frac{i}{m}$ significant.
+
+### Examples of error corrections
+Below we've plotted 10 p-values in increasing order. We set $\alpha = 0.2$, and we plot the 3 error control methods that we talked about above. The blue line is false positive control, which is just $\alpha$. There are 4 p-values below that line, so we would call those 4 significant. The red line is family-wise error control, the Bonferroni correction. This is a much more stringent definition of significance, so there are only 2 significant p-values below this threshold. Finally, the gray line is the false discovery control. Only 3 values are considered significant here.
+
+```{r sig, echo=FALSE}
+df <- data.frame(rank = seq(1, 10), pval = c(.01, .018, .052, .13, .3, .306, .316, .32, .47, .805))
+
+a <- .2
+afwer <- .2/10
+afdr <- a * df$rank/10
+m <- afdr[3] - afdr[2]
+x <- 4
+b <- afdr[x] - (m*x)
+
+ggplot(data = df, aes(rank, pval)) + geom_point(size = 2) +
+     geom_hline(yintercept = a, size = 1, color = "steelblue") +
+     geom_hline(yintercept = afwer, size = 1, color = "darkred") +
+     geom_abline(slope = m, intercept = b, size = 1, color = "gray")
+```
+
+## Adjusted p-values
+So far we've concerned ourselves with adjusting the $\alpha$ level, but you can also calculate adjusted p-values. But you **must remember** that if you do this, they are **no longer** real p-values. They are not classically defined p-values, and they do not adhere to the properties of p-values.
+
+Here's an example of an adjusted Bonferroni correction. Instead of altering $\alpha$ to be $\alpha/m$, you could adjust your p-values by making $P_i^{adj} = max(m \times P_i, 1)$ for each p-value. Using the data from the plot above, that would mean multiplying every p-value by 10, $m$, and taking either the new p-value or 1, whichever is larger. Then you can call all $P_i^{adj} < \alpha$ significant, and you will control the family-wise error rate.
+
+### Case study 1: no true positives
+We're going to generate some $x$ and $y$ data with no relationship. We'll generate 20 data points 1000 times, and fit a linear model each time. Then we'll examine all 1000 p-values.
+
+```{r cs1}
+set.seed(1010093)
+pValues <- rep(NA, 1000)
+for (i in 1:1000) {
+     y <- rnorm(20)
+     x <- rnorm(20)
+     pValues[i] <- summary(lm(y ~ x))$coeff[2, 4]
+}
+
+sum(pValues < 0.05)
+```
+
+So we can see that there are 51 models out of 1000 that are deemed significant. We know that the data is actually random, so there is no significance, but this makes sense because our $\alpha$ level was 0.05, so we knew we could expect about a 5% false positive rate.
+
+Let's adjust the p-values with a nifty built-in function in R called `p.adjust`. We give it a vector full of p-values, tell it what method to use for the adjustment, and we get shiny new p-values. When we do this, we compare these adjusted p-values to the original $\alpha$.
+
+```{r padj}
+sum(p.adjust(pValues, method = "bonferroni") < .05)
+sum(p.adjust(pValues, method = "BH") < .05)
+```
+
+In the first line we perform the Bonferroni correction, which we remember controls the family-wise error rate. With this correction, we see no models pass the significance threshold.
+
+In the second line, we perform the Benjamini-Hochberg correction, which controls the false discovery rate. Again, nothing pops as significant.
+
+### Case study 2: 50% true positives
+Now let's regenerate some new data with a true positive rate of 50%.
+
+```{r cs2}
+set.seed(1010093)
+pValues <- rep(NA, 1000)
+for (i in 1:1000){
+     x <- rnorm(20)
+     if(i <= 500){y <- rnorm(20)}else{y <- rnorm(20, mean = 2*x)}
+     pValues[i] <- summary(lm(y ~ x))$coeff[2, 4]
+}
+truStatus <- rep(c("zero", "not zero"), each = 500)
+table(pValues < 0.05, truStatus)
+```
+
+That table shows us where the p-values are significant (the `TRUE` row), and where the relationship between `x` and `y` was actually zero (the `zero` column). With no error correction, we can see that our false positive rate was nearly $\alpha$ (24 `TRUE`/`zero`).
+
+Next we'll apply the 2 error correction methods we've been talking about. First, the Bonferroni correction.
+
+```{r cs2bon}
+table(p.adjust(pValues, method = "bonferroni") < 0.05, truStatus)
+```
+
+We can see that we have 0 false positives. This makes sense, as the Bonferroni correction controls the family-wise error rate, which is the probability of getting a single false positive.
+
+And then the Benjamini-Hochberg correction:
+
+```{r cs2bh}
+table(p.adjust(pValues, method = "BH") < 0.05, truStatus)
+```
+
+We've detected every instance of `not zero` correctly, and we've got fewer false positives than if we had done no multiple testing correction.
+
+Below are some visual demonstrations of these p-value adjustments. In the first, the Bonferroni correction, we can see that the smallest p-values, even when multiplied by $m = 1000$, remain below 1. Most p-values, however, skyrocket, and since we've taken the max, they all become 1.
+
+In the Benjamini-Hochberg example, we can see that the adjusted p-values are simply slightly elevated across the entire domain of original p-values.
+
+```{r pplots}
+p1 <- qplot(pValues, p.adjust(pValues, method = "bonferroni"))
+p2 <- qplot(pValues, p.adjust(pValues, method = "BH"))
+
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+```
+
+## Notes about multiple testing
+Multiple testing is actually an entire subfield, and it seems fascinating. There are shitloads of corrections you can apply beyond the 2 that we've discussed, but those 2 are usually good enough. If the tests are not entirely independent, you may run into problems. There's another correction method (`BY` in R) that can apparently help with this.
+
+The lectures also provide some additional resources if you're interested. There's a $130 book [here](http://www.amazon.com/Multiple-Procedures-Applications-Genomics-Statistics/dp/0387493166/ref=sr_1_2/102-3292576-129059?ie=UTF8&s=books&qid=1187394873&sr=1-2), and a couple of papers (available in full) regarding [statistical significance for genome-wide studies](http://www.pnas.org/content/100/16/9440.full) and an [intro to multiple testing](http://ies.ed.gov/ncee/pubs/20084018/app_b.asp).
+
+# Resampling
+So remember all that stuff during the t-test section of this week where I droned on about sample sizes? Turns out that was all wrong and jumping ahead by quite a bit. In those previous examples, the *population* was some abstracted, idealized group of data, and the **data that I actually had** was the ***sample*** from that population. I was inadvertently jumping ahead into resampling, which is a topic that covers how to take multiple samples from the data that you have and with them infer some population statistic.
+
+## The Bootstrap
+This is one of the most useful tools every devised in statistics. Invented in 1979, the bootstrap helps statisticians construct confidence intervals and calculate standard errors for difficult statistics. As an example, how would you derive a confidence interval for the median? Well, it's basically just a shit ton of math, dealing with asymptotes; it's pretty messy. The bootstrap method frees you up from the mathematical grind of estimating some of these statistics, and while it may not be exactly on-the-nose, it's good enough that the payoff for the effort is incredibly high. So what is it?
+
+The name comes from "pulling yourself up by your own bootstraps," which is of course impossible. But that name is not entirely appropriate for this method, because what we're doing isn't black magic, it's just ingenious.
+
+Imagine a sample of 50 die rolls. We want to understand the behavior of the *average* of 50 die rolls. So on the left, we have our population distribution (uniform from 1 to 6).
+
+```{r die50, echo=FALSE}
+nosim <- 1000
+g1 <- ggplot(data = data.frame(dfx = 1:6, dfy = rep(1/6, 6)), aes(x = dfx, y = dfy)) +
+     geom_bar(stat = "identity", fill = "lightblue", color = "black")
+rolls <- data.frame(m = colMeans(matrix(sample(1:6, nosim*50, replace = TRUE), nrow = 50, ncol = nosim)))
+g2 <- ggplot(rolls, aes(x = m)) +
+     geom_histogram(binwidth = 0.2, aes(y = ..density..), fill = "salmon", color = "black")
+grid.arrange(g1, g2, ncol = 2)
+```
+
+If we want to figure out the behavior of the average, we could go about it algebraically, but that could be a pain. We could also do it via simulations. Roll a die 50 times, get an average, then roll 50 more times, get an average, and repeat that until we have 1000 averages, which is exactly how we generated the density plot on the right, above. That's all well and good, but what if you only had 1 sample of 50 rolls, instead of 1000 samples? This is where bootstrapping comes in.
+
+Below we've got the histogram of die roll values on the left. Again, this is a single sample of size 50. We can't evaluate the behavior of averages of 50 die rolls in this case, because we only have 1 average, not lots from lots of samples, and we can't assume anything about the population distribution, so we can't simulate more data (i.e. we can't assume that the die generating this data was fair).
+
+Bootstrapping does the next best thing. It says, "What if we take multiple samples of the data that we *do* have?" This is resampling from the empirical data. Basically, we don't know that the population distribution is uniform at $^1/_6$ (blue, above); we actually don't know the population distribution at all. But we have 50 die rolls drawn from *that* unknown population distribution, so our empirical data is related to that distribution. (Accordingly, as sample size increases, this distribution will fall in line with the uniform distribution.) Note that the histogram below, on the left, will serve as our proxy for the unknown population distribution. This happens because when we resample from our sample of 50, the relative frequency of each value, 1 to 6, in our *sample* becomes the probability of drawing that value when we resample. (Again, this means that if the sample size is very large, our proxy distribution will be very close to the uniform distribution.)
+
+```{r singlesample, echo=FALSE}
+n <- 50
+b <- 1000
+rolls <- data.frame(r = sample(1:6, n, replace = TRUE))
+g1 <- ggplot(as.data.frame(prop.table(table(rolls))), aes(x = rolls, y = Freq)) +
+     geom_bar(stat = "identity", fill = "lightblue", color = "black")
+btstrp <- data.frame(m = colMeans(matrix(sample(rolls$r, n * b, replace = TRUE), nrow = n, ncol = b)))
+g2 <- ggplot(btstrp, aes(x = m)) +
+     geom_histogram(binwidth = 0.2, aes(y = ..density..), fill = "salmon", color = "black")
+grid.arrange(g1, g2, ncol = 2)
+```
+
+On the right, we've taken 1000 resamples from our 1 sample of size 50, and calculated *their* averages. This histogram is pretty similar to the one above. This is **incredible**. It means that our proxy distribution (if it's large enough) can do a decent job of estimating the unknown population distribution, and this means we can effectively estimate population statistics from 1 single, quality sample!
+
+### A bootstrapping example
+Now we're going to use the father/son height dataset to demonstrate bootstrapping. Below, we load the dataset and make `x` the vector of sons' heights. We're going to take 10,000 bootstrapped samples and put them in a matrix that is 10,000 rows by `length(x)` columns. So every row is a resample (with replacement) of the original data (same sample size as original data, $n$). This means that we're drawing samples from a distribution that gives probability $1/n$ to each observed data point; that distribution is known as th empirical distribution, and it's the same as the proxy distribution I referred to above. We then compute the median for every row via the `apply()` function; as we saw before with the mean, this is an effective way to estimate the population's median statistic.
+
+R Note: notice that we're using `apply` over the 1st dimension (rows). Remember that `apply(x, 1)` is the same as `rowMeans`; `apply(x, 2)` is the same as `colMeans`.
+
+```{r fsdata}
+data(father.son)
+x <- father.son$sheight
+n <- length(x)
+b <- 10000
+resamples <- matrix(sample(x, n*b, replace = TRUE), b, n)
+resampledMedians <- apply(resamples, 1, median)
+g1 <- ggplot(data.frame(x = resampledMedians), aes(x = x)) + geom_density(fill = "salmon") +
+     geom_vline(xintercept = median(x))
+g1
+```
+
+So what we have above is a distribution of 10,000 bootstrapped medians from our original sample. We've also plotted the median of the empirical data (original data/our one sample) over the distribution. This is the whole point of bootstrapping: we **don't know** the population's distribution. We are estimating the population median by way of our sample. The plot above is known as the sampling distribution of the sample median. If you take the standard deviation of the sampling distribution of the sample median, you get the standard error of the median, which is a measure of the error between the true population median and your sample-estimated median.
+
+### More bootstrapping notes
+A quick recap: you have a statistic that estimates some population parameter (sample mean estimates population mean), but you don't know its sampling distribution, i.e. you don't know how the sample was generated. The bootstrap method says you can use your sample data to approximate the sampling distribution. The method is to first simulate complete data sets from the observed data with replacement, then you calculate the statistic of interest (mean, perhaps). This is approximately drawing from the sampling distribution of that statistic. Using those simulated statistics, you can then define a confidence interval for that statistic or take the standard deviation of the sampling distribution of that statistic to calculate the standard error of that statistic.
+
+Let's lay the steps out (so I can come back and bone up on them quickly...). Let's bootstrap our way to a confidence interval for the median!
+
+1. We start with a vector of length $n$, our data
+2. Sample $n$ observations **with replacement** from the observed data
+3. Take the median of that simulated data
+3. Do that $B$ times ($B$ should be a really big number, $\ge 10,000$)
+4. These 10,000 medians are *approximately* drawn from the sampling distribution of the median of $n$ observations, and they can estimate our population parameter
+5. Here's what we do with this nifty information:
+     - Plot a density or histogram
+     - Calculate the standard deviation of this sampling distribution of the median; its standard deviation is an estimate of the standard error of the median (how far away from the actual population median your estimate is likely to be).
+     - Take the $2.5^{th}$ and $97.5^{th}$ percentiles as a confidence interval for the median
+          - this is particularly nifty; you just used a single sample to guess a population parameter **and** you know how effective it was
+
+Below is the general form of the code for this procedure (still using the father/son data):
+
+```{r boot}
+B <- 10000
+resamples <- matrix(sample(x, n * B, replace = TRUE), B, n)
+medians <- apply(resamples, 1, median)
+sd(medians)
+```
+
+That is the standard error of our median. We can make a confidence interval with:
+
+```{r bootcon}
+quantile(medians, c(0.025, 0.975))
+```
+
+And here's the histogram of medians:
+
+```{r bootmeds}
+g1 <- ggplot(data.frame(x = medians), aes(x = medians)) +
+     geom_histogram(color = "black", fill = "lightblue", binwidth = 0.025)
+g1
+```
+
+# Permutation Tests
+Let's have a look at the insect spray dataset. This is just 2 columns, spray ID and count of dead insects.
+
+```{r spray}
+data("InsectSprays")
+head(InsectSprays)
+g1 <- ggplot(InsectSprays, aes(spray, count, fill = spray)) + geom_boxplot()
+g1
+```
+
+Let's say we want to investigate the efficacy of spray B vs spray C. Let's start with the null hypothesis $H_0$: the 2 groups are equally effective. In that case, the label (spray B or spray C) of each data point is irrelevant. So we can conduct a permutation test by permuting the spray labels (mixing them all up) and calculating some statistic for the permuted groups. This statistic could be mean difference in counts, geometric mean, even the T-statistic.
+
+You can perform many of these permutations and calculate the statistic for each simulation. To calculate a p-value, you simply find the percentage of simulations where the simulated statistic is more extreme than the observed statistic.
+
+It's interesting to note that permutation tests are really very useful and so they have developed many, well, permuations. There's the rank sum test, Fisher's exact test, and so-called randomization tests that are all closely related to (and in some cases mechanically identical to) what we're talking about here. Permutation tests also work well for regression, and are very well suited to multivariate settings. Anyway, here's wonderwall...
+
+```{r sprayperm}
+bcdata <- InsectSprays[InsectSprays$spray %in% c("B", "C"), ]
+y <- bcdata$count
+group <- as.character(bcdata$spray)
+testStat <- function(w, g) mean(w[g == "B"]) - mean(w[g == "C"])
+observedStat <- testStat(y, group)
+permutations <- sapply(1:10000, function(i) testStat(y, sample(group)))
+observedStat
+mean(permutations > observedStat)
+```
+
+So let's talk about what is going on in that code. First, we subset the data to groups B and C. Then we isolate our dependent and independent variables as vectors in `y` and `group`. The `testStat` function simply indexes `w` where `g == B`, takes the mean, does the same on `w` where `g == C`, then subtracts the means. We'll call this function to calculate our statistic. `observedStat` just calls the mean difference function on our initial data. `permutations` is a clever little for-loop construct that conducts 10,000 permuted simulations. The last line is our p-value, the percentage of the permuted simulations that were greater than the mean difference in our original data.
+
+```{r spraydist}
+g1 <- ggplot(data.frame(permutations = permutations), aes(permutations)) +
+     geom_histogram(fill = "lightblue", color = "black", binwidth = 1) +
+     geom_vline(xintercept = observedStat)
+g1
+```
+
+Above we've plotted `permutations` which again, is the mean difference for 10,000 permuted simulations. The vertical line is the mean difference in the original data, our observed statistic. No permutations really came close to the observed statistic.
