@@ -1,0 +1,481 @@
+---
+title: "7. Regression - Week 2 Notes"
+output: html_notebook
+---
+---
+title: "7. Regression - Week 2 Notes"
+author: "Zac Heacker"
+date: "9/1/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 5, fig.align = "center")
+```
+
+# Statistical linear regression models
+Up to now we've been talking about estimation, but that only tells us about some data. We now need to know how to generalize our estimates to a population. That's right, baby, MOAR STATISTICAL INFERENCE!
+
+So, what's the plan. Well, we're gonna start with our typical linear regression model, $Y_i = \beta_0 + \beta_1X_i$, but we're going to add to it some iid (independent and identically distributed) Gaussian random variables and end up with this:
+
+$$Y_i = \beta_0 + \beta_1X_i + \epsilon_i$$
+
+$\epsilon_i$ represents some random errors that are assumed to be iid $N(0, \sigma^2)$. There are a lot of ways to think about these errors. One way is to think of them as as being a function of a lot of other variables in the system that you didn't account for, but you assume that their effect on the dependent variable is equivalent to an iid normal variable. For now, we'll ignore the interpretation task; let's just focus on how we mechanically deal with inference in regression.
+
+Note that the expected value $E[Y_i | X_i = x_i] = \mu_i = \beta_0 + \beta_1x_i$, i.e. the expected value $Y_i$ is just the result of the $\beta$ line at $x_i$. Additionally, the variance $Var(Y_i | X_i = x_i) = \sigma^2$, i.e. the variance *around the regression line*. Note also that these are population quantities that we would like to infer. They have sample analogues which we'll discuss in a bit, but these are the estimands that we're trying to get at.
+
+## Interpreting coefficients
+$\beta_0$ is the expected value of the response $Y$ when the predictor is 0.
+
+$$E[Y_i | X = 0] = \beta_0 + \beta_1 \times 0 = \beta_0$$
+
+That's just the intercept, from the geometric interpretation (of a line). This might not be of any value in real life though; $X$ cannot always take the value of 0 (think blood pressure or height).
+
+If you add a constant to a line, remember that you change the intercept, but not the slope. This is a way of dealing with that 0 problem. You can subtract off $\bar{X}$ from the independent variable, so your intercept is now interpreted as the expected value of the response not when $X = 0$, but when $X = \bar{X_i}$, the average of the x values.
+
+What about the slope? Well, it's the *change* in the expected value of the response given a 1-unit change in the expected value of the predictor.
+
+## Linear regression for prediction
+Once we know our $\beta$ values, we can obviously plug in any $X$ to predict the response. You can't go off the rails, though, and this works best if that $X$ is within the range of the data you used to fit the line (extrapolation is risky).
+
+Now we're going to code. Yay.
+
+```{r start}
+library(UsingR); data(diamond)
+```
+
+We start with the diamond dataset, loaded above. Let's look at it.
+
+```{r looksee}
+head(diamond)
+str(diamond)
+```
+
+```{r plots}
+library(ggplot2)
+g <- ggplot(diamond, aes(carat, price)) +
+     xlab("Mass (carats)") +
+     ylab("Price (SIN $)") +
+     geom_point(color = "darkblue", alpha = 0.3, size = 4) +
+     geom_smooth(method = "lm", se = FALSE)
+g
+```
+
+So there we have a jitterplot of our data with a ggplot2 regression line. Easy peasy. Let's fit a line manually, with `lm()`.
+
+```{r lm}
+fit <- lm(price ~ carat, data = diamond)
+fit
+```
+
+Wunderbar, now we can see our coefficients, $\beta_0$ and $\beta_1$. You can get a more detailed view of the model by calling `summary(fit)`, and we'll go through every piece of it in this class. Later.
+
+We can get just the coefficients with `coef(fit)`. Let's look at them. The 2nd coefficient is the slope, meaning we have a `r coef(fit)[2]` change in the response for every unit change (1 carat) in $X$. The first coefficient tells us the expected value of a 0 carat diamond, which is pointless. Let's center $X$ around $\bar{X}$, then the intercept coefficient will be more useful.
+
+```{r centerx}
+cFit <- lm(price ~ I(carat - mean(carat)), data = diamond)
+coef(cFit)
+```
+
+So what do those coefficients mean? Well, for starters, the slope hasn't changed (at least it shouldn't have...). But our intercept is now `r coef(cFit)[1]`, which is the expected value of the response at the mean of $X$ (carat weight). 
+
+Now let's predict some shit. Someone asks you how much they should pay for 3 different diamonds, their weights in the `newx` variable below. You could manually calculate the price estimate with the coefficients, or you could use the `predict` function. Let's do that.
+
+```{r newx}
+newx <- c(0.16, 0.27, 0.34)
+coef(fit)[1] + coef(fit)[2] * newx
+predict(fit, newdata = data.frame(carat = newx))
+```
+
+`predict` takes the output from several different model fits, some `newdata`, and predicts the response accordingly. If you omit `newdata`, it returns the predictions at the original x values, that is, it returns $\hat{Y}$, our fit estimates for each data point.
+
+Let's sum up what we're really doing here. Below, we have our original plot of the diamond data, but we've also plotted the $\hat{y}$'s, the estimate for each independent variable data point.
+
+```{r sum}
+fitdf <- data.frame(carat = diamond$carat, price = diamond$price, yhat = predict(fit))
+fitdf$delta <- fitdf$price - fitdf$yhat
+gl <- g + geom_point(data = fitdf, aes(carat, yhat), color = "darkred", size = 4, alpha = 0.8)
+```
+
+
+## Residuals
+So we have our original data, and we have a model fit through that data. We can take the original $X$ values and use the model to predict the $\hat{Y}$ values, and those don't line up perfectly with our original $Y$'s because the data wasn't perfectly linear.
+
+The distance between the $\hat{Y}$'s and $Y$'s is called a residual (black lines in the chart below); it's the difference between the data and where our model expects the data to be. Residuals are stupid useful.
+
+```{r residuals}
+g + geom_segment(data = fitdf, aes(x = carat, y = yhat, xend = carat, yend = yhat + delta), size = 1.5, color = "red")
+```
+
+Think about our model again: the $i^{th}$ predicted outcome $Y_i$ at the predictor value $X_i$ is
+
+$$\hat{Y_i} = \hat{\beta_0} + \hat{\beta_1} X_i$$
+
+The residual, the difference between the observed and predicted outcome, is
+
+$$e_i = Y_i - \hat{Y_i}$$
+
+This should be very familiar, because it's exactly what least squares was doing: minimizing $\sum_{i=1}^n e_i^2$
+
+### Some notes about residuals
+
+* $E[e_i] = 0$; the expected value of the residuals is 0. Not entirely sure why...
+* If an intercept is included, $\sum_{i=1}^n e_i = 0$
+* More generally, if a regressor variable $X_i$ is included in the model, then $\sum_{i=1}^n e_i X_i = 0$
+* Residuals are useful for investigating the quality of a model's fit
+* Positive residuals are above the line, negative residuals below
+* Residuals can be thought of as the outcome ($Y$) with the linear association of the predictor ($X$) removed
+* You have to differentiate residual variation (variation after removing the predictor) from systematic variation (variation explained by the *linear* association of the regression model)
+* Residual plots highlight poor model fit
+
+### Residuals in code
+I've actually already done the residual calculation above, although I did it manually. There's the `resid` function in R which acts on the output of `lm` (or other model fitting functions) to return just the residuals. I'll recreate my data frame with the proper function.
+
+```{r resid}
+diamond$e <- resid(fit)
+diamond$yhat <- predict(fit)
+```
+
+It's not terribly useful to look at residuals in the context of the regression line; it's far better to look at the residuals against the x-axis, with the regressor removed.
+
+```{r flatres}
+g2 <- ggplot(data = diamond, aes(carat, e)) +
+     geom_point(color = "darkblue", fill = "lightblue", size = 4, shape = 21) +
+     geom_hline(yintercept = 0) +
+     geom_segment(aes(x = carat, y = 0, xend = carat, yend = e), color = "red")
+g2
+```
+
+Now let's switch gears and look at some random data the professor concocted.
+
+```{r concoct}
+x <- runif(100, -3, 3)
+y <- x + sin(x) + rnorm(100, sd = 0.2)
+df <- data.frame(x = x, y = y)
+g3 <- ggplot(df, aes(x, y)) +
+     geom_smooth(method = "lm", color = "black") +
+     geom_point(size = 4, shape = 21, color = "black", fill = "red", alpha = 0.4)
+g3
+```
+
+So there's clearly a linear trend, and our linear model can find it. Nifty. But something interesting happens when we plot the residuals (spoiler alert, it's the sine component).
+
+```{r sine}
+fit <- lm(y ~ x)
+e <- resid(fit)
+yhat <- predict(fit)
+df$e <- e
+df$yhat <- yhat
+g3r <- ggplot(df, aes(x, y)) +
+     geom_point(aes(x, e), size = 4, shape = 21, color = "black", fill = "red", alpha = 0.4) +
+     geom_hline(yintercept = 0) +
+     geom_segment(aes(x = x, y = 0, xend = x, yend = e))
+g3r
+```
+
+The take away here is that residual plots are good at showing you what kind of relationship is left when you've already accounted for the linear relationship.
+
+It's also possible that there's more to your data, even if it looks like the linear model fits more or less perfectly. 
+
+```{r heteroskedasticity}
+x <- runif(100, 0, 6)
+y <- x + rnorm(100, 0, 0.001 * x)
+df <- data.frame(x = x, y = y)
+g4 <- ggplot(df, aes(x, y)) +
+     geom_point(size = 4, shape = 21, color = "black", fill = "red", alpha = 0.4) +
+     geom_smooth(method = "lm", color = "black")
+g4
+```
+
+Looks like we're done. We found a model that fits the data, cause the data is just about perfect. Suspiciously so, in fact...
+
+Let's check out the residuals.
+
+```{r heteroskedasticityresids}
+fit <- lm(y ~ x, data = df)
+df$e <- resid(fit)
+df$yhat <- predict(fit)
+g4r <- ggplot(df, aes(x, e)) +
+     geom_point(size = 4, shape = 21, color = "black", fill = "red", alpha = 0.4) +
+     geom_hline(yintercept = 0)
+g4r
+```
+
+WAAAAAAAAAAAAAAA!? That's heteroskedasticity in action. Heteroskedasticity is the property of data that it's variance is not constant. From the Greek, hetero = different, skedasis = dispersion. We can see above that the variance of the residuals increases as x increases. Residual plots are really good at finding this kind of stuff.
+
+#### An aside on formula notation
+So there's something going on with formulas that I don't quite understand, and the only way I'm going to figure it out is to graph some shit. Let's start with the diamond data itself.
+
+```{r baseplot}
+gd <- ggplot(data = diamond, aes(carat, price)) +
+     geom_point(size = 4, shape = 21, color = "black", fill = "darkblue", alpha = 0.4)
+gd
+```
+
+So the model formulas are in the form `response ~ predictors`, and various operators (`+`, `-`, `*`, `:`) can be used to express different relationships between multiple variables. What I'm more curious about is the use of `+ 0` and `- 1`. Let's plot some examples now.
+
+First, we can see that using the formula `y ~ 0` means using no predictor variables; this does not perform a regression at all. Or rather, the "best fit line" is simply `y = 0`. If you perform this via the `lm` function, you'll notice that the "residuals" are really just the original $Y$ values (which makes sense, their "distance from the regression line" is really their distance from the X-axis).
+
+NOTE: `y ~ -1` is equivalent to `y ~ 0`
+
+```{r formula0}
+gd + geom_smooth(method = "lm", formula = y ~ 0, se = FALSE) + ggtitle("y ~ 0")
+summary(lm(price ~ 0, data = diamond))
+summary(diamond$price)
+```
+
+Now what about `y ~ 1`? As we see below, this is equivalent to only using $\beta_0$, the intercept term, as the sole predictor. This is simply finding the mean value of our response variable and fitting a horizontal line there. Examining the `lm` function, we can see that only the intercept term is returned as a coefficient.
+
+NOTE: `y ~ 1` is equivalent to `y ~ - x`, which says "remove the x variable," leaving only the intercept
+
+```{r formula1}
+gd + geom_smooth(method = "lm", formula = y ~ 1, se = FALSE) + ggtitle("y ~ 1")
+summary(lm(price ~ 1, data = diamond))
+```
+
+And here's the most common use of `lm`, and the formula that the function defaults to. `y ~ x`. This fits a line of the form $y = \beta_0 + \beta_1X$. We can see that we get 2 coefficients back, the intercept and the slope.
+
+```{r formulax}
+gd + geom_smooth(method = "lm", formula = y ~ x, se = FALSE) + ggtitle("y ~ x")
+summary(lm(price ~ carat, data = diamond))
+```
+
+Now what about these `+ 0` and `- 1` variables? Let's start with `- 1`. We can see that it fits a positive linear trend to the data, but it's different than the `y ~ x` line. And the `lm` function returns 1 coefficient, but not the intercept; it's the slope. This method is fitting a line that is forced through the origin. We can check that with the `predict` function, which should return `y = 0` for `carat = 0`.
+
+```{r formula-1}
+gd + geom_smooth(method = "lm", formula = y ~ x - 1, se = FALSE) + ggtitle("y ~ x - 1")
+summary(lm(price ~ carat - 1, data = diamond))
+unname(predict(lm(price ~ carat - 1, data = diamond), newdata = data.frame(carat = 0)))
+```
+
+Now what about `+ 0`? This is the exact same thing as `- 1` above: fits a line through the origin, intercept forced to 0, returns the slope. Again, we can check it with `predict`.
+
+```{r formula+0}
+gd + geom_smooth(method = "lm", formula = y ~ x + 0, se = FALSE) + ggtitle("y ~ x + 0")
+summary(lm(price ~ carat + 0, data = diamond))
+unname(predict(lm(price ~ carat + 0, data = diamond), newdata = data.frame(carat = 0)))
+```
+
+When it comes to forcing the regression through 0, remember that it's a good idea to center your data around the origin, otherwise you're forcing (0, 0) to be an actual data point, which is usually unwarranted.
+
+### A glimpse at residual variation
+WTF is going on here? Well, we're actually fitting 2 models: 1 with just the intercept (horizontal line) and another with slope and intercept (the ab-line through the data). We stitch together the residuals from both of those models, then create a factor variable (`model`) to identify which type of model created which residuals. Then we do a dotplot (and a violin plot, same thing) to show the distribution (density + range) of each set of residuals.
+
+```{r dotplot}
+e <- c(resid(lm(price ~ 1, data = diamond)), resid(lm(price ~ carat, data = diamond)))
+model <- factor(c(rep("intcp", nrow(diamond)), rep("intcp + slp", nrow(diamond))))
+ggplot(data.frame(e = e, model = model), aes(model, e, fill = model)) +
+     geom_dotplot(binaxis = "y", stackdir = "center", binwidth = 20)
+ggplot(data.frame(e = e, model = model), aes(model, e, fill = model)) +
+     geom_violin()
+```
+
+So this isn't that intuitive right off the bat, at least not to me anyway, but the charts above show us the variation of price around the mean price (left) and the variation of price around the regression line based on x (mass, or carat) (right). Clearly, there's way more variation around the mean than around our regression line, which means the regression line explains more variation than the mean does. We'll soon talk about how the variation around the mean can be broken apart into the variation that *is* explained by the linear fit and the variation that remains *unexplained* by it.
+
+### Residual variation
+So our model takes the form
+
+$$Y_i = \beta_0 + \beta_1X_i + \epsilon_i$$
+
+where $\epsilon_i \sim N(0, \sigma^2)$. When we talk about residual variation, we're talking about the variation around the regression line. If an intercept is included, then this variation must sum to 0. The estimate of $\sigma^2$ is $\frac{1}{n}\sigma_{i=1}^n e_i^2$, the mean squared residual (just like the mean squared error). Also note that $\sigma^2$ is the *population* variance (for residuals around the regression line) and we're estimating it with the mean squared residuals.
+
+Most people actually use $\hat{\sigma}^2 = \frac{1}{n - 2} \sum_{i=1}^n e_i^2$, which is sort of like the average squared residual, except it divides by $n-2$ rather than $n$. When $n$ is large, this becomes mostly negligible, but it can make a difference for small $n$. Why do we do this? Because we are fitting a linear model, so we have 2 coefficients, $\beta_0$ and $\beta_1$. This means that 2 degrees of freedom are lost, and if we know $n-2$ residuals, we can calculate the last 2. So it's like there are really only $n-2$ residuals. **NOTE**: I think this has something to do with the residual variance being chi-squared distributed instead of normally distributed. Maybe more chi-squared study will clear this up, but for now, just use the $n-2$ formulation above.
+
+Let's look at the diamond data again. Here's the summary of the `lm` fit.
+
+```{r summaryfit}
+fit <- lm(data = diamond, price ~ carat)
+summary(fit)
+```
+
+We can see that the summary displays the "Residual standard error," which is the square root of the variance $\sigma^2$ as given above. We can grab that residual standard error with `summary(fit)$sigma` which is `r round(summary(fit)$sigma, 2)`.
+
+So let's go back to our dotplot from earlier.
+
+```{r moardots}
+ggplot(data.frame(e = e, model = model), aes(model, e, fill = model)) +
+     geom_dotplot(binaxis = "y", stackdir = "center", binwidth = 20)
+```
+
+If you think about the total variability in the response, it's most likely that you would think about the variability around the mean, or the y-intercept (with no slope) in linear regression. That corresponds to the dotplot on the left, the variation in the `lm(price ~ 1)` model. Realize that this is simply $\sigma_{i=1}^n (Y_i - \bar{Y})^2$, the sum of the squared errors (we're just ignoring the denominator for now and dealing only with the sum of the errors).
+
+So that variability $\sigma_{i=1}^n (Y_i - \bar{Y})^2$ is the variability explained by accounting for the mean.
+
+Now let's add our regression line. We explained the "height" of the data with the intercept term ($\bar{Y}$), the mean, and now we're explaining $Y_i$ (the $i^{th}$ data point) more accurately by accounting for $X$. So each $i^{th}$ data point has a regression output $\hat{Y}_i$ based on $X$, and we can study how *those* values deviation from the average $\bar{Y}$.
+
+So the regression variability would be $\sigma_{i=1}^n (\hat{Y}_i - \bar{Y})^2$, the variability explained by the regressor $X$.
+
+Then there's the residual variability, which we've been talking about: the variability of the data points *around* the regression line. This would be $\sigma_{i=1}^n (Y_i - \hat{Y}_i)^2$ where $Y_i$ is the data point and $\hat{Y}_i$ is the regression value at $X_i$.
+
+**Here's the cool part**:
+
+$$\Sigma_{i=1}^n (Y_i - \bar{Y})^2 = \Sigma_{i=1}^n (\hat{Y}_i - \bar{Y})^2 + \Sigma_{i=1}^n (Y_i - \hat{Y}_i)^2$$
+
+That is, the total variation around the mean (intercept) **equals** the variation explained by the regressor **plus** the residual variation.
+
+### R squared
+So using the identity above, we can now calculate $R^2$, which is the percentage of the total variability that is explained by the linear relationship with the predictor.
+
+$$R^2 = \frac{\Sigma_{i=1}^n (\hat{Y}_i - \bar{Y})^2}{\Sigma_{i=1}^n (Y_i - \bar{Y})^2}$$
+
+$R^2$ tells us "how good" (what percentage of total variability is explained by) the regression model is.
+
+#### Some facts about $R^2$
+
+* $R^2$ is always between 0 and 1
+* $R^2$ is the sample correlation squared
+* $R^2$ can be misleading in determining model quality
+     * deleting data can inflate $R^2$
+     * adding terms, even non-useful terms, always increases $R^2$
+* do `example(anscombe) to see some examples of linear modeling gone awry
+     * basically same mean and variance of X and Y
+     * identical correlations (so same $R^2$)
+     * same linear regression
+     
+# Inference in regression
+Let's look at the model again, just to keep it fresh in our minds.
+
+* $Y_i = \beta_0 + \beta_1X_i + \epsilon_i$
+* $\epsilon \sim N(0, \sigma^2)$
+* we assume that the true model is known
+* we have a couple of estimates for the $\beta$'s
+     * $\hat{\beta_0} = \bar{Y} - \hat{\beta_1}\bar{X}$
+     * $\hat{\beta_1} = Cor(Y, X) \frac{Sd(Y)}{Sd(X)}$
+     
+So the goal here is to be able to infer some things about our model. Like before, inference relies heavily on confidence intervals and hypothesis tests. Let's review a bit about inference.
+
+* statistics like $\frac{\hat{\theta} - \theta}{\hat{\sigma}_\hat{\theta}}$ often have the following properties:
+     * they're normally distributed and have a finite sample Student's T distribution if the estimated variance is replaced with a sample estimate (under normality assumptions)
+     * they can be used to test $H_0:\theta = \theta_0$ versus $H_a:\theta \gt, \lt, \ne \theta_0$
+     * they can be used to create confidence intervals for $\theta$ via $\hat\theta \pm Q_{1 - \alpha/2} \hat{\sigma_{\hat\theta}}$ where $Q_{1 - \alpha/2}$ is the relevant quantile from either a normal or T distribution
+* in the case of regression with iid sampling assumptions and normal errors, our inferences will look very similar to what we've seen in the statistical inference course
+
+So let's get to the goods, the variance of the regression slope. Here it is:
+
+$$ \sigma_{\hat\beta_1}^2 = Var(\hat\beta_1) = \sigma^2 / \sum_{i=1}^n(X_i - \bar{X})^2$$
+
+So that's kinda interesting. The variance of our slope estimate is dependent on 2 things: $\sigma^2$, the variance *around the regression line*, and $\sum_{i=1}^n(X_i - \bar{X})^2$, which is the "spread" of $X$. For this variance to be low, thus our estimate is accurate, you want to see low variation around the regression line, but you want $X$ to be really spread out. This makes some sense if you think about a blob of data centered very tightly around a $\bar{X}$ versus many $X$ values covering a large domain; many lines can pivot around the blob, while the distance on the x-axis will magnify errors for poor-fitting models.
+
+We also have the formula for the variace of our estimate of $\beta_0$, the intercept, but it's less informative.
+
+$$\sigma_{\hat\beta_0}^2 = Var(\hat\beta_1) = \left( \frac{1}{n} + \frac{\bar{X}^2}{\sum_{i=1}^n (X_i - \bar{X})^2} \right) \sigma^2$$
+
+In both of these cases, $\sigma$ is replaced by its estimate:  $\hat{\sigma}^2 = \frac{1}{n - 2} \sum_{i=1}^n e_i^2$ (sum over the residuals). 
+
+It might not surprise you to know that $\frac{\hat\beta_j - \beta_j}{\hat{\sigma}_{\hat\beta_j}}$ ($\beta_{0 or 1}$'s estimate minus $\beta$ over variance) follows a T distribution with $n-2$ degrees of freedom and a normal distribution for large $n$. As we did last time, this let's us perform hypothesis tests and create confidence intervals.
+
+## Coding examples
+Let's do a bunch of hard coded stuff.
+
+```{r whatever}
+data(diamond)
+y <- diamond$price
+x <- diamond$carat
+n <- length(y)
+n
+length(x)
+
+# definition of estimates of beta1 and beta0
+b1 <- cor(y, x) * sd(y) / sd(x)
+b0 <- mean(y) - b1 * mean(x)
+
+# residuals are just y-data - model (model is y = b0 + b1x + e)
+e <- y - b0 - b1 * x
+
+# estimate of the standard deviation around the regression line, or the average of the residuals using n-2 instead of n
+sigma <- sqrt(sum(e^2) / (n - 2))
+
+# sum of squares of x
+ssx <- sum((x - mean(x))^2)
+
+# standard error of our estimate of beta0, or how far from the "true" beta0 we're likely to be
+SEb0 <- (1/n + mean(x)^2/ssx)^.5 * sigma
+
+# standard error of our estimate of beta1
+SEb1 <- sigma/sqrt(ssx)
+
+# T statistics for b0 and b1 (hypothesis is 0, so no subtraction needed)
+tb0 <- b0 / SEb0
+tb1 <- b1 / SEb1
+
+# Get to p-values from T statistics
+pb0 <- 2 * pt(abs(tb0), df = n - 2, lower.tail = FALSE)
+pb1 <- 2 * pt(abs(tb1), df = n - 2, lower.tail = FALSE)
+
+# stitch together a coefficient table, manually
+coefs <- rbind(c(b0, SEb0, tb0, pb0), c(b1, SEb1, tb1, pb1))
+colnames(coefs) <- c("estimate", "std error", "t value", "P(>|t|)")
+rownames(coefs) <- c("intercept", "x")
+coefs
+```
+
+Now let's just show how much easier this can be:
+
+```{r woah}
+fit <- lm(y ~ x)
+sumfit <- summary(fit)
+sumfit$coefficients
+```
+
+Yeah, don't do this manually anymore...
+
+## Confidence intervals
+Let's talk a bit about confidence intervals. Here's the summary output for our linear fit:
+
+```{r sumfit}
+sumfit
+```
+
+Now let's make some confidence intervals for $\beta_0$ and $\beta_1$.
+
+```{r conf}
+coefs <- sumfit$coefficients
+
+# estimate + (sign factor) * quantile function * standard error
+coefs[1,1] + c(-1, 1) * qt(0.975, df = fit$df) * coefs[1,2]
+coefs[2,1] + c(-1, 1) * qt(0.975, df = fit$df) * coefs[2,2]
+```
+
+Again, those are the confidence intervals (95%) for our estimates of $\beta_0$ and $\beta_1$, the intercept and the slope.
+
+# Prediction
+We know that the obvious estimate for a prediction at point $x_0$ is $\hat\beta_0 + \hat\beta_1x_0$. If we want to provide a prediction interval then we need to bring in the standard error (how wrong our estimate is). It's important to note here that there's a difference between predicting the interval for the line at $x_0$ and predicting the interval for some new $y$ at $x_0$. We don't get to know why yet, but here are the formulas:
+
+For predicting the interval of the line at $x_0$
+
+$$\hat\sigma \sqrt{ \frac{1}{n} + \frac {(x_0 - \bar{X})^2} {\sum_{i=1}^n (X_i - \bar{X})^2}}$$
+
+And for predicting the interval of some new $y$ at $x_0$
+
+$$\hat\sigma \sqrt{ 1 + \frac{1}{n} + \frac {(x_0 - \bar{X})^2} {\sum_{i=1}^n (X_i - \bar{X})^2}}$$
+
+## Moar code
+Let's make some prediction intervals for the diamond dataset.
+
+```{r almost}
+# these are the new data points we'll predict on
+newx <- data.frame(x = seq(min(x), max(x), length = 100))
+
+# make prediction from our lm fit, confidence of the line vs new prediction
+p1 <- data.frame(predict(fit, newdata = newx, interval = "confidence"))
+p2 <- data.frame(predict(fit, newdata = newx, interval = "prediction"))
+
+# wrangle it for ggplot
+p1$int = "confidence"
+p2$int = "prediction"
+p1$x = newx$x
+p2$x = newx$x
+dat = rbind(p1, p2)
+names(dat)[1] = "y"
+
+# plot
+g <- ggplot(dat, aes(x = x, y = y)) +
+     geom_ribbon(aes(ymin = lwr, ymax = upr, fill = int), alpha = 0.25) +
+     geom_line() +
+     geom_point(data = data.frame(x = x, y = y), aes(x, y), size = 3, alpha = 0.4)
+g
+```
+
+A few things to note about this. First, and most obviously, the confidence interval is much tighter than the prediction interval. That's because it's possible to predict *the line* much more accurately than new data points. Even if the regression line's confidence interval goes to 0, there's still variability in the data, which the prediction interval takes into account with that $1 + ...$.
+
+Additionally, notice that both intervals get smaller in the middle and wider at the ends. This is because, as we saw in the equations for these intervals (above), the minimal value for the interval is when $x_0 = \bar{X}$; the farther from the $\bar{X}$ you get, the less certain you can be about your estimate.
