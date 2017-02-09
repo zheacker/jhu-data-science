@@ -1,0 +1,790 @@
+---
+title: "7. Regression - Week 3 Notes"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 5, fig.align = "center")
+```
+
+Big week. We're tackling multivariate regression, adjustment, residuals (again), and model selection. Let's dive in.
+
+# Multivariate regression
+What if you have another predictor in addition to $X$? Now we're gonna generalize linear regression to multivariate regression, starting by assuming additive effects. (Not sure if we're going to get into interactions yet.)
+
+As for motivation, it's important to understand the goal of multivariate linear regression. We're trying to define the effects of each individual variable while holding all other variables equal.
+
+Multivariate regression is a good method. A *really* good method. These professors did a kaggle competition on health care data, and the regression methods were just barely worse off than the much more complicated methods that won. So it makes sense that whenever you're starting to fit models, multivariate regression should be step 1, always. This is especially true because of how parsimonious and interpretable they are.
+
+So let's look at the model.
+
+$$ Y_i = \beta_1X_{1i} + \beta_2X_{2i} + ... + \beta_pX_{pi} + \epsilon_i = \sum_{k=1}^p X_{ik}\beta_j + \epsilon_i$$
+
+Let's step through it.
+
+* $Y_i$ is the response of the $i^{th}$ observation
+* $\beta_1, \beta_2, ... , \beta_p$ are the coefficients (weights/slopes) for each predictor, and there are $p$ predictors
+* $X_{1i}, X_{2i}, ... , X_{pi}$ are the predictor values for predictors $1 - p$, for the $i^{th}$ observation; these are this observation's independent variables
+* Generally, $X_{1i} = 1$, which makes $\beta_1$ an intercept term. This is convention
+
+So the least squares formula should be no surprise...
+
+$$\sum_{i=1}^n \left( Y_i - \sum_{k=1}^p X_{ki}\beta_j \right)^2$$
+
+That's just the observed response minus the modeled response estimate ($X$'s times $\beta$'s), squared, then summed. Also note that when we say "linear model" we're talking about linear with respect to the coefficients ($\beta$'s); the $X$ terms can be any other crazy kind of function.
+
+Formally, the estimate for a multivariate regression coefficient is what you get if you remove the linear component of all the other predictors from both the response and predictors themselves; if you hold everything else constant, this $\beta_k$ is the scale of the effect of this $X_p$ on $Y$.
+
+## Simple linear regression example
+Let's look at the simple linear case through this lens. We know that $\beta_k$ is the effect after the other variables have been accounted for. That is, you account for all other variables in the response, *and* in $X_k$, and then you can see the effect that $X_k$ has on $Y$.
+
+So for simple linear regression, with 2 terms, our model is
+
+$$E[Y_i] = X_{1i}\beta_1 + X_{2i}\beta_2$$
+
+The estimate for $\beta_1$ is
+
+$$\hat{\beta_1} = \frac{\sum_{i=1}^n e_{i, Y|X_2} e_{i, X_1|X_2}} {\sum_{i=1}^n e_{i, X_1 | X_2}^2}$$
+
+So the coefficient of $X_1$ requires regressing out $X_2$ from both the response $Y$ and $X_1$. The same can be said for $\beta_2$
+
+$$\hat{\beta_2} = \frac{\sum_{i=1}^n e_{i, Y|X_1} e_{i, X_2|X_1}} {\sum_{i=1}^n e_{i, X_2 | X_1}^2}$$
+
+Now, if we apply this to our linear regression problem, we can say $X_{2i} = 1$, the intercept term. So $X_{1i}$ is the slope. Let's start with $X_2$. If we fit $X_2$ on $Y$, remember that $X_2$ is our intercept term, we know that the fitted coefficient of $X_{2i}$ on $Y_i$ is $\bar{Y}$, just the mean of $Y$. So the residuals are $e_{i, Y|X_2} = Y_i - \bar{Y}$.
+
+Notice also that the fitted coefficient of $X_{2i}$ on $X_{1i}$ is $\bar{X_1}$, so the residuals are $e_{i, X_1|X_2} = X_{1i} - \bar{X_1}$.
+
+So...
+
+$$\hat{\beta_1} = \frac {\sum_{i=1}^n e_{i, Y|X_2} e_{i, X_1|X_2}} {\sum_{i=1}^n e_{i,X_1|X_2}^2} = \frac {\sum_{i=1}^n (X_i - \bar{X})(Y_i - \bar{Y})} {\sum_{i=1}^n (X_i - \bar{X})^2} = Cor(Y, X) \frac {Sd(Y)} {Sd(X)}$$
+
+## Generalisimo
+When we generalize to multivariable regression, our least squares criteria is
+
+$$\sum_{i=1}^n (Y_i - X_{1i}\beta_1 - ... - X_{pi}\beta_p)^2$$
+
+And again, the way we interpret $\beta_1$ here is to say that the effects of all other variables have been removed from $Y$ and from $X_1$, and $\beta_1$ is the effect of $X_1$, solely, on $Y$.
+
+### Let's do some code
+Make some data.
+
+```{r makedata}
+# first we make 3 predictors
+n <- 100
+x <- rnorm(n)
+x2 <- rnorm(n)
+x3 <- rnorm(n)
+
+# y is this response, notice that the coefficients are all 1
+y <- 1 + x + x2 + x3 + rnorm(n, sd = 0.1)
+
+# lm contains an intercept by default, so now we get the residuals of y using the intercept, x2, and x3; not x
+ey <- resid(lm(y ~ x2 + x3))
+
+# same here, residuals of x using the intercept, x2, and x3
+ex <- resid(lm(x ~ x2 + x3))
+
+# this is the regression through the origin based on the residuals (beta1hat)
+sum(ey * ex) / sum(ex^2)
+
+# which is the same as the response in the Y residuals as a function of the X residuals (no intercept)
+coef(lm(ey ~ ex - 1))
+
+# this is the same as the model based on all 3 variables
+coef(lm(y ~ x + x2 + x3))
+```
+
+**The takeaway**: the interpretation of a regression coefficient is the expected change in the response per unit change in the regressor, holding all other regressors fixed.
+
+And here's a summary of the whole generalized linear model:
+
+* the model is $Y_i = \sum_{i=1}^p X_{ik}\beta_k + \epsilon_i$ where $\epsilon_i \sim N(0, \sigma^2)$
+* the fitted response is $\hat{Y_i} = \sum_{k=1}^p X_{ik}\hat{\beta_k}$
+* the residuals $e_i = Y_i - \hat{Y_i}$
+* the variance estimate $\hat{\sigma}^2 = \frac{1}{n-p} \sum_{i=1}^n e_i^2$
+* to get predicted responses at new values $x_1, ... , x_p$ just plug them into the linear model
+     * $\sum_{k=1}^p x_k \hat{\beta_k}$
+* our coefficients have standard errors, $\hat{\sigma}_{\hat{\beta_k}}$
+* we can check if a coefficient is 0 with a T test $\frac {\hat{\beta_k} - \beta_k} {\hat{\sigma}_{\hat{\beta_k}}}$
+* predicted responses also have standard errors, so we can calculate predicted and expected response intervals
+
+## Multivariate regression examples - part 1
+Let's start by looking at the swiss fertility dataset
+
+```{r loadswiss}
+library(datasets)
+data("swiss")
+str(swiss)
+summary(swiss)
+```
+
+This data contains the standardized fertility measure and socio-economic indicators for each of 47 French-speaking provinces of Switzerland at around 1888. The 6 variables are:
+
+1. fertility, a measure of fertility
+2. agriculture, % of males involved in agriculture work
+3. examination, % of draftees receiving highest mark on army exam
+4. education, % of education beyond primary school for draftees
+5. catholic, % catholic (as opposed to protestant)
+6. infant mortality, live births who live less than 1 year
+
+All variables except fertility are proportions of the population.
+
+Let's start with some basic scatterplots.
+
+```{r firstpass, fig.width=13, fig.height=6}
+library(ggplot2)
+library(GGally)
+g <- ggpairs(swiss, lower = list(continuous = "smooth"), axisLabels = "internal")
+g
+```
+
+Yay, we got a scatterplot matrix.
+
+Let's just ping everyone all at once.
+
+```{r fitall}
+summary(lm(Fertility ~ ., data = swiss))
+```
+
+The `~ .` models fertility as a function of all other variables, with no interactions. Let's look at the `Agriculture` variable. Its estimate is -0.17, meaning it has an expected 0.17 decrease in standardized fertility for every 1% increase in % of males in agriculture. The standard error tells us how precise that estimate is. If we wanted to perform a hypothesis test to see if $\beta_{Agri} = 0$ versus $\beta_{Agri} \ne 0$, we can calculate the T statistic with $\frac{\beta_{Agri} - 0}{Std.Err\beta_{Agri}}$, but R already does this. R also gives us the significance level, i.e. $P(\gt |t|)$.
+
+Now let's look at some other models and see how they change and impact our model selection.
+
+```{r fitag}
+summary(lm(Fertility ~ Agriculture, data = swiss))$coefficients
+```
+
+So now we're looking at a model including just Agriculture. We can see that the magnitude of the estimate is roughly the same, but the sign has changed; agriculture now has a positive effect on fertility?
+
+While this may seem counterintuitive, we can show that it makes sense. Let's make up some data to prove this.
+
+```{r randomd}
+n <- 100
+
+# think of x2 as being days from 1 to 100
+x2 <- 1:n
+
+# x1 is your bank account, increases w/ time, + some random spending
+x1 <- 0.01 * x2 + runif(n, -0.1, 0.1)
+
+# y is your happiness, increases with time, decreases with money, + randomness
+y <- -x1 + x2 + rnorm(n, sd = 0.01)
+
+summary(lm(y ~ x1))$coef
+summary(lm(y ~ x1 + x2))$coef
+```
+
+Look what happens when we fit only with $X_1$. We know the correct coefficient should be -1, but instead it's huge, and positive? What gives? Well, since we haven't accounted for $X_2$, our model is still trying to account for those effects, but it's only got $X_1$ to work with. $X_2$ must overpower $X_1$ by a good bit, because that positive effect is still clear.
+
+But then, when fit using both $X_1$ and $X_2$, the coefficients are nearly perfect, which makes sense; apart from the slight randomness, those coefficients are the *entire* model.
+
+Let's demonstrate this graphically.
+
+```{r confound}
+dat <- data.frame(x1 = x1, x2 = x2, y = y, ey = resid(lm(y ~ x2)), ex1 = resid(lm(x1 ~ x2)))
+g <- ggplot(dat, aes(x = x1, y = y, color = x2)) +
+     geom_point(size = 3) +
+     geom_smooth(method = "lm", se = FALSE, color = "black")
+g
+```
+
+So we can see that $Y$ increases with $X_1$, but the color shows us that $X_2$ also increases with $X_1$; they're not linearly independent. So let's perform multivariate regression (account for other variables' effects) and look at the residuals.
+
+```{r fixed}
+g2 <- ggplot(dat, aes(x = ex1, y = ey, color = x2)) +
+     geom_point(size = 3) +
+     geom_smooth(method = "lm", se = FALSE, color = "black")
+g2
+```
+
+Now we can see that the relationship between the residuals of $Y$ and the residuals of $X_1$ is about -1. Also, $X_2$ looks totally unrelated.
+
+Note that this **does not** mean it's a good idea to throw every variable into a regression model; there are consequences, and feature selection must be scientific.
+
+## Multivariate regression examples - part 2
+
+### Dummy variables
+
+Consider the linear model
+
+$$Y_i = \beta_0 + X_{i1}\beta_1 + \epsilon_i$$
+
+where $X_{i1}$ is binary, either 1 or 0 for each of 2 possible groups (in the group, or out of it, respectively). For the people in the group ($X_1 = 1$), $E[Y_i] = \beta_0 + \beta_1$. For those not in the group ($X_1 = 0$), $E[Y_i] = \beta_0$.
+
+The least squares fit works out to be $\hat{\beta_0} + \hat{\beta_1}$ is the mean for those in the group, and $\hat{\beta_0}$ is the mean for those not in the group. This means that $\beta_1$ can be interpreted as the change in the mean response (i.e. the change in the expected value of $Y$, $E[Y_i]$) with respect to $\beta_0$.
+
+This is a good way to fit a 2-level factor into a model; you put one outcome in relation to another.
+
+We can also extend this to more than 2 levels. Let's talk politics, democrats, republicans, and independents.
+
+* the model is $Y_i = \beta_0 + X_{i1}\beta_1 + X_{i2}\beta_2 + \epsilon_i$
+* $X_{i1}$ is 1 for republicans and 0 otherwise
+* $X_{i2}$ is 1 for democrats and 0 otherwise
+* we don't need a third variable, because it's already encoded in $X_{i1} = X_{i2} = 0$
+* if $i$ is republican, $E[Y_i] = \beta_0 + \beta_1$
+* if $i$ is democrat, $E[Y_i] = \beta_0 + \beta_2$
+* if $i$ is independent, $E[Y_i] = \beta_0$
+
+So $\beta_1$ is the difference in the mean response between republicans and independents. $\beta_2$ is the difference between democrats and independents. To find the change between republicans and democrats, you would subtract their expected values, resulting in $\beta_1 - \beta_2$. This is a perfect example of why factor levels matter a great deal. Which factor is your "base level" can have a profound impact on how you interpret your results.
+
+### InsectSpray example
+Follow the yellow brick code.
+
+```{r isdata}
+data("InsectSprays")
+g <- ggplot(data = InsectSprays, aes(x = spray, y = count, fill = spray)) +
+     geom_violin(color = "black") +
+     xlab("Spray Type") + ylab("Insect Count")
+g
+
+fit <- lm(data = InsectSprays, count ~ spray)
+summary(fit)
+```
+
+If you look at the coefficient table, you'll notice that `sprayA` is missing. This is because everything else is is relative to spray A. The intercept term is actually the estimate for A, and the estimate for each of the other sprays is the change in the mean response *with respect to A*.
+
+What if you don't want your estimates to be relative to A? Then you remove the intercept term.
+
+```{r withA}
+summary(lm(data = InsectSprays, count ~ spray - 1))
+```
+
+Now we see that `sprayA` is listed, and the estimates for the other sprays are relative to 0. In general, it's better to leave the intercept term and report the data in reference to that factor level. The reason for this lies in the p-values. If you remove the intercept, and the estimates are relative to 0, then the p-value is also in reference to 0. So you hypothesis test is asking "Is the mean of this group/spray different than or equal to 0?" Conversely, if everything is reported in reference to `sprayA`, then your hypothesis test is asking, "Is the mean of this group/spray different than or equal to that of sprayA?"
+
+Since factor levels have proven to be so important, we should talk about releveling. Releveling lets you redefine a factor variable in order to specify a new "base level." (By default, R includes an intercept term and omits the  alphabetically first level of the factor; the intercept is that factor's mean, and all tests for that factor are tests against 0.) For instance, if we wanted spray C to be our baseline group:
+
+```{r relevelr}
+spray2 <- relevel(InsectSprays$spray, "C")
+summary(lm(data = InsectSprays, count ~ spray2))$coef
+```
+
+Now we can see that spray A is listed, spray C is gone--and is in fact the intercept term--and all other estimates and statistics are defined in reference to spray C.
+
+**NOTE**: this analysis is actually pretty flawed because the data are not normally distributed; they're bounded below by 0. Poisson might be a better model. Also, the variances are certainly not constant across sprays, so while our estimates may be correct, our inferences certainly are not.
+
+## Multivariate regression examples - part 3
+Oh my god more regression...
+
+```{r part3}
+data(swiss)
+head(swiss)
+library(dplyr)
+qplot(data = swiss, Catholic)
+```
+
+Mkay, so % catholic is pretty bimodal. Makes sense, provinces are largely homogeneous, so it's kind of all or nothing (or rather "most or not much"). Let's make a binary variable to flag majority catholic provinces.
+
+```{r cathbin}
+swiss <- mutate(swiss, CatholicBin = as.factor(1*(Catholic > 50)))
+head(swiss)
+```
+
+```{r damnplot, fig.width=12, fig.height=6.5}
+customizr <- function(data, mapping, method = "lm", ...) {
+     ggplot(data = data, ...) +
+          geom_point(mapping = mapping) +
+          geom_smooth(mapping = mapping, method = method, color = "black", ...)
+     }
+
+g <- ggpairs(swiss, axisLabels = "internal",
+             mapping = ggplot2::aes(color = CatholicBin, group = 1),
+             upper = list(continuous = wrap(customizr, se = FALSE),
+                          combo = "blank"),
+             lower = list(continuous = wrap(customizr, se = FALSE),
+                          combo = "box"))
+g
+```
+
+God, that took forever to make. Dude only plotted 1 graph, the color-coded scatterplot of Fertility ~ Agriculture. I thought, what the hell, let's use `ggpairs` and plot 'em all. 2 hours later...
+
+And after all that, let's just print the lone plot anyways, just so we can see it better...
+
+```{r fuckingplots}
+getPlot(g, 1, 2)
+```
+
+Now there are some issues to fitting a good linear model to this data. There are the weird outliers, and the effects of all the other variables. Ignore all that for now.
+
+Let's think for a moment about the models that we could possible fit to this data. We have a $Y$, fertility, $X_1$, % agriculture, and $X_2$, binary Catholic/Protestant.
+
+1. we could ignore $X_2$ altogether
+     * $E[Y|X_1X_2] = \beta_0 + \beta_1X_1$
+2. we could include both $X$ terms; the model would look like
+     * $E[Y|X_1X_2] = \beta_0 + \beta_1X_1 + \beta_2X_2$
+     * in the case $X_2 = 0$ (majority protestant), this would evaluate to:
+          * $\beta_0 + \beta_1X_1$
+     * in the case $X_2 = 1$ (majority catholic), we get:
+          * $\beta_0 + \beta_2 + \beta_1X_1$
+     * notice that both cases have equal slopes, but different intercepts ($\beta_0$ versus $\beta_0 + \beta_2$)
+3. we could include an interaction variable
+     * $E[Y|X_1X_2] = \beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_3X_1X_2$
+          * when $X_2 = 0$, $E[Y|X_1X_2] = \beta_0 + \beta_1X_1$
+          * when $X_2 = 1$, $E[Y|X_1X_2] = \beta_0 + \beta_1X_1 + \beta_2 + \beta_3X_1 = \beta_0 + \beta_2 + (\beta_1 + \beta_3)X_1$
+
+So what the hell does all that mean? Well, if we omitted the interaction variable (#2) then we would fit 2 lines, but they would have the same slope. When we *include* the interaction variable, we fit 2 lines with different slopes and different intercepts. Now let's do moar code.
+
+## Multivariate regression examples - part 4
+First, let's fit model #1.
+
+```{r num1}
+fit1 <- lm(data = swiss, Fertility ~ Agriculture)
+summary(fit1)
+g <- ggplot(data = swiss, aes(Agriculture, Fertility, color = CatholicBin)) +
+     xlab("% in Agriculture") + ylab("Fertility") +
+     geom_point(size = 3)
+g1 <- g + geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2], size = 1.5)
+g1
+```
+
+You can probably imagine, we're going to plot model #2 next.
+
+```{r num2}
+fit2 <- lm(data = swiss, Fertility ~ Agriculture + CatholicBin)
+summary(fit2)
+g2 <- g + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2], size = 1.5)
+g2
+```
+
+And now for the interaction.
+
+```{r num3}
+fit3 <- lm(data = swiss, Fertility ~ Agriculture * CatholicBin)
+summary(fit3)
+g3 <- g + geom_abline(intercept = coef(fit3)[1], slope = coef(fit3)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit3)[1] + coef(fit3)[3], slope = coef(fit3)[2] + coef(fit3)[4], size = 1.5)
+g3
+```
+
+Now see how much easier `geom_smooth` would be?
+
+```{r smoooth}
+g4 <- g + geom_smooth(method = "lm", se = FALSE)
+g4
+```
+
+# Adjustment
+Adjustment is the idea of putting regressors into a linear model to investigate the role of a third variable on the relationship between the other 2. They use the breath mint/lung function example. It's a bad idea to claim "breath mint usage causes shortness of breath" because 1. it's stupid and 2. it's probably due to smoking habits. Smokers' lungs suck, smokers use mints, so the 2 variables 'mint usage' and 'lung function' may look related, but they're just related by the smoking variable.
+
+To make your breath mint claim you would have to prove that the effect help up among smokers and non-smokers; you've got to prove that the smoking variable isn't the key. We're going to use some simulation to demonstrate this.
+
+## Simulation 1
+
+```{r sim1}
+n <- 100
+t <- rep(c(0, 1), c(n/2, n/2))
+x <- c(runif(n/2), runif(n/2))
+c <- factor(t)
+beta0 <- 0
+beta1 <- 2
+tau <- 1
+sigma <- .2
+y <- beta0 + x*beta1 + t*tau + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x)
+fit2 <- lm(y ~ x + t)
+q <- qplot(x, y, fill = c, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2]) +
+     geom_hline(yintercept = mean(y[1:(n/2)]), size = 1.5) +
+     geom_hline(yintercept = mean(y[(n/2 + 1) : n]), size = 1.5)
+
+q <- q + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+```
+
+Mkay, what are we looking at? The 2 horizontal lines show the marginal effects of group status (red or blue) *disregarding* $X$. You can think of this by imagining the projection of each point onto the $Y$ axis. Put another way, this model uses only the intercepts, no slopes. $Y = \beta_0 + \beta_1T + \epsilon$.
+
+The other 2 parallel lines account for the influence of $X$. This model is $Y = \beta_0 + \beta_1T + \beta_2X + \epsilon$. It makes sense, because it looks like there's a clear linear relationship.
+
+Let's examine the intercepts of both models. Specifically, let's look at the distance between the groups' means for each model. In the horizontal "group only" model, the means are about 1 unit apart; once we account for $X$, in the 2-dimensional model, we see that the distance between the intercepts (within *that* model) is still about 1 unit.
+
+Another thing to note about this data is that there are plenty of red and blue values for any given value of $X$. This means you can make direct comparisons to the data all along the $X$ range without relying solely on the model.
+
+## Simulation 2
+
+```{r sim2}
+n <- 100
+t <- rep(c(0, 1), c(n/2, n/2))
+x <- c(runif(n/2), 1.5 + runif(n/2))
+c <- factor(t)
+beta0 <- 0
+beta1 <- 2
+tau <- 0
+sigma <- .2
+y <- beta0 + x * beta1 + t * tau + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x)
+fit2 <- lm(y ~ x + t)
+
+q <- qplot(x, y, fill = c, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2]) +
+     geom_hline(yintercept = mean(y[1 : (n/2)]), size = 1.5) +
+     geom_hline(yintercept = mean(y[(n/2 + 1) : n]), size = 1.5)
+
+q <- q + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+```
+
+Now we've got a totally different situation. The marginal effect of group status is substantial, but once we account for $X$, the difference between the intercepts falls dramatically. If we think of these as medical treatments where the blue group got a treatment and the red group was the control, then we can think of the distance between teh two groups' intercepts as the "treatment effect" size for this model. In this scenario, it initially appears that there is a substantial treatment effect (difference in blue and red intercepts), but once we account for $X$ the treatment effect all but disappears.
+
+## Simulation 3
+
+```{r sim3}
+n <- 100
+t <- rep(c(0, 1), c(n/2, n/2))
+x <- c(runif(n/2), .9 + runif(n/2))
+c <- factor(t)
+beta0 <- 0
+beta1 <- 2
+tau <- -1
+sigma <- .2
+y <- beta0 + x * beta1 + t * tau + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x)
+fit2 <- lm(y ~ x + t)
+
+q <- qplot(x, y, fill = c, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2]) +
+     geom_hline(yintercept = mean(y[1 : (n/2)]), size = 1.5) +
+     geom_hline(yintercept = mean(y[(n/2 + 1) : n]), size = 1.5)
+
+q <- q + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+
+```
+
+In this simulation, we see Simpson's Paradox (which isn't really a paradox). Disregarding $X$, the mean (intercept) of the blue group is clearly higher than the red group. But once we account for $X$, we see that at the intercepts, the red group is actually higher than the blue. This is the point of these simulations: to demonstrate that things can change pretty dramatically when you include/exclude different variables.
+
+As above, in terms of treatment effects we could say that the sign switches depending on whether we account for $X$ or not. Without $X$, blue does better; accounting for $X$ means red does better.
+
+## Simulation 4
+
+```{r sim4}
+n <- 100
+t <- rep(c(0, 1), c(n/2, n/2))
+x <- c(0.5 + runif(n/2), runif(n/2))
+c <- factor(t)
+beta0 <- 0
+beta1 <- 2
+tau <- 1
+sigma <- .2
+y <- beta0 + x * beta1 + t * tau + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x)
+fit2 <- lm(y ~ x + t)
+
+q <- qplot(x, y, fill = c, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2]) +
+     geom_hline(yintercept = mean(y[1 : (n/2)]), size = 1.5) +
+     geom_hline(yintercept = mean(y[(n/2 + 1) : n]), size = 1.5)
+
+q <- q + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+```
+
+Again, interesting things happen when you adjust for $X$. Disregarding $X$, it looks like there's only a very small change in the response. However, once we adjust for $X$, the difference becomes pretty large.
+
+## Simulation 5
+
+```{r sim5}
+n <- 100
+t <- rep(c(0, 1), c(n/2, n/2))
+x <- c(runif(n/2, -1, 1), runif(n/2, -1, 1))
+c <- factor(t)
+beta0 <- 0
+beta1 <- 2
+tau <- 0
+tau1 <- -4
+sigma <- .2
+y <- beta0 + x * beta1 + t * tau + t * x * tau1 + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x)
+fit2 <- lm(y ~ x + t + I(x * t))
+
+q <- qplot(x, y, fill = c, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2]) +
+     geom_hline(yintercept = mean(y[1 : (n/2)]), size = 1.5) +
+     geom_hline(yintercept = mean(y[(n/2 + 1) : n]), size = 1.5)
+
+q <- q + geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2], size = 1.5) +
+     geom_abline(intercept = coef(fit2)[1] + coef(fit2)[3], slope = coef(fit2)[2] + coef(fit2)[4], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+
+```
+
+In this interesting case we can see that there initially appears to be little treatment effect when only fitting the intercepts. But once we account for $X$ a much different picture takes shape.
+
+## Simulation 6
+
+```{r sim6}
+p <- 1
+n <- 100
+x2 <- runif(n)
+x1 <- p * runif(n) - (1 - p) * x2
+beta0 <- 0
+beta1 <- 1
+tau <- 4
+sigma <- 0.01
+y <- beta0 + x1 * beta1 + tau * x2 + rnorm(n, sd = sigma)
+fit1 <- lm(y ~ x1)
+fit2 <- lm(y ~ x2)
+
+q <- qplot(x1, y, fill = x2, geom = "blank") +
+     geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2], size = 1.5) +
+     geom_point(size = 3, shape = 21)
+q
+```
+
+This last simulation is only to demonstrate that this also works for continuous variables. Here we see that there isn't a terribly strong relationship between $X_1$ and $Y$, but it looks like something is happening with $X_2$.
+
+We can get some insight into this by plotting the residuals.
+
+```{r resids}
+fit <- lm(resid(lm(x1 ~ x2)) ~ resid(lm(y ~ x2)))
+qplot(resid(lm(x1 ~ x2)), resid(lm(y ~ x2)), fill = x2, geom = "blank") +
+     geom_point(shape = 21, size = 3) +
+     geom_abline(intercept = coef(fit)[1], slope = coef(fit)[2], size = 1.5)
+```
+
+I'm not entirely sure what I'm looking at there, which is why now is the perfect time for...
+
+# Residuals!
+Mkay, we start with a multivariable linear model $Y_i = \sum_{k=1}^p X_{ik}\beta_j + \epsilon_i$. and we assume that $\epsilon_i \stackrel{iid}{\sim} N(0, \sigma^2)$.
+
+We define our residuals as $e_i = Y_i - \hat{Y}_i = Y_i - \sum_{k=1}{p} X_{ik}\hat{\beta_j}$.
+
+Our estimate of residual variation is $\hat{\sigma}^2 = \frac {\sum_{i=1}^n e_i^2} {n - p}$ (the average, but divided by $n-p$).
+
+You can quickly throw an `lm` fit into the base `plot` function, and you get a few interesting graphs. We'll walk through them shortly, but we first need to have a discussion on...
+
+## Influential, high-leverage, and outlying data points
+
+```{r foursquare}
+n <- 2
+x <- rnorm(n * 100, sd = 1)
+y <- x + rnorm(n * 100, sd = 0.25)
+fit <- lm(y ~ x)
+g <- ggplot(data.frame(x = x, y = y), aes(x, y)) +
+     geom_abline(intercept = coef(fit)[1], slope = coef(fit)[2]) +
+          geom_point(shape = 21, fill = "lightblue", size = 3)
+px <- c(0,5,0,5)
+py <- c(0,0,5,5)
+text = c("lo lev, lo inf", "lo lev, hi inf", "hi lev, hi inf", "hi lev, lo inf")
+df <- data.frame(px = px, py = py, text = text)
+g <- g + geom_point(data = df, aes(px, py, label = text), size = 4, shape = 21, fill = "red")
+# + geom_text(data = df, aes(px, py, label = text))
+g
+```
+
+So here we have some clearly linearly related data (blue), and 4 reference points. We'll use these to explain leverage and influence.
+
+Leverage is defined as the distance from $\bar{X}$, the average $X$ value; influence is defined as how much a data point uses that leverage, or how closely it aligns to the fitted model.
+
+Let's start with point (5, 5). This point has high leverage, but very little influence. We know our regression model has to go through the point $(\bar{X}, \bar{Y})$, and we can imagine that point as being a fulcrum of sorts. The farther any given data point is from $\bar{X}$, the more leverage that point has in the model, just like the effects of leverage in a mechanical system. But this point has very little influence because it lies more or less in line with our regression model.
+
+Now consider point (0, 0), which has low leverage and low influence. Low leverage because it is within the range of $X$ values from the data; low influence because it also falls in line with our model.
+
+Now point (0, 5). This has low leverage because it's in the middle of the $X$'s, but high influence because it's way outside of the model.
+
+And point (5, 0) has both high leverage and high influence because it is far from $\bar{X}$ and far from our model's fit. **Note** that points (0,5) and (5,0) have entirely different characteristics.
+
+## Residuals - part 2
+The point to all of this is that the term "outlier" is actually pretty vague. Outliers can be the result of real or spurious processes, which should inform how they're treated. There are several nifty R functions that can automagically answer some questions about influence, and you can find a handy list with:
+
+```{r handy}
+?influence.measures
+```
+
+Here's a crash course in those measures:
+
+* rstandard
+* rstudent
+     - these are types of residuals, but they're sort of normalized. The problem with residuals is that they're unit-specific, so they're in the units of the data. It would be easier to discuss them if they were normalized to some common unit. These functions normalize the residuals by dividing by some appropriate standard error. They differ in whether or not you include a data point when calculating the standard error, which affects whether or not the standardized residuals follow a normal or T distribution, but that isn't a huge deal most of the time.
+* hatvalues - I think this is somehow a measure of leverage? I honestly can't tell from the lecture...
+* dffits - measures influence; basically you fit a model, remove this data point, fit the model again, and see how the fitted value changes with the data point in/out of the model
+* dfbetas - does the same thing as `dffits`, but does it for every $\beta$ parameter
+* cooks.distance - an overall change in the coefficients ($\beta$'s), sort of summarizes `dfbetas`
+* resid - returns the ordinary residuals (not normalized)
+     - there's a nifty way to get the "press residuals," although I have no idea what those actually are. But it's `resid(fit) / (1 - hatvalues(fit))`
+     - the press residuals aren't as good for things like finding outliers, but rather for qualifying model fit
+* Also note that the above functions do not actually require the model to be re-fit for every leave-one-out calculation; there are cool linear algebra relationships that get exploited to make this a breeze
+
+So how does Brian Caffe actually use these things?
+
+* unless you have massive data and automated systems, hard thresholds aren't great; take a more wholistic view
+* everyone plots the residuals against the fitted values; if you see any kind of pattern there, you're missing it in your model
+* the residual QQ plot (?) is trying to ascertain normality
+* the plot of the leverage values just asks if there are any points that have high leverage
+* the influence measures get to the bottom line: if I remove this data point, how does it affect the fitted values, the coefficients, etc.
+
+## Residuals - part 3
+Now let's do some code stuff.
+
+### Case 1
+
+```{r case1}
+n <- 100
+x <- rnorm(n, sd = 2)
+y <- rnorm(n, sd = 2)
+x[1] <- 10
+y[1] <- 10
+ggplot(data.frame(x = x, y = y), aes(x, y)) +
+     geom_point(shape = 21, fill = "lightblue", size = 3) +
+     geom_smooth(method = "lm", se = FALSE, color = "black")
+```
+
+That blob is just random noise, so there should be no correlation whatsoever. But since we have this guy hanging out at (10, 10), it looks like there actually is a strong correlation.
+
+Now let's have a look at some of the diagnostic functions.
+
+```{r diag1}
+fit <- lm(y ~ x)
+head(dffits(fit))
+head(dfbetas(fit))
+head(hatvalues(fit))
+
+# fuck it, do it live
+# head(influence.measures(fit)$infmat)
+```
+
+We can see that the 1st value is much much higher than the rest, which apparently is an indicator of influence.
+
+### Case 2
+
+```{r case2}
+n <- 100
+x <- rnorm(n, sd = 1)
+y <- x + rnorm(n, sd = 0.25)
+x[1] <- 5
+y[1] <- 5
+ggplot(data.frame(x = x, y = y), aes(x, y)) +
+     geom_point(shape = 21, fill = "lightblue", size = 3) +
+     geom_smooth(method = "lm", se = FALSE, color = "black")
+```
+
+Now we have a clear relationship and another far-removed data point. This time the data point lies on the linear model. We can look again at our diagnostic functions.
+
+```{r diag2}
+fit <- lm(y ~ x)
+head(dffits(fit))
+head(dfbetas(fit))
+head(hatvalues(fit))
+```
+
+We can see that the first point has an elevated `dffits` value, but not as drastic as in case 1. And the `hatvalue` of point 1 is also pretty high. This makes sense: point 1 is well outside the x-axis bounds of the rest of the data, hence the high `hatvalue`, but it doesn't affect the slope of the line that much, since it lies more or less on the line, which means the `dffits` value ins't absurdly large.
+
+### swiss data plots
+Now let's look at the default plots we get when plotting any `lm`. Since we've developed a bit of an understanding for model diagnostic tools, maybe we can make some sense out of them.
+
+```{r plotfit}
+data(swiss)
+par(mfrow = c(2, 2))
+fit <- lm(data = swiss, Fertility ~ .)
+plot(fit)
+```
+
+1. Residuals vs Fitted - in this plot you're just looking for any pattern that would indicate that there is still some systematic variation in your residuals
+2. Normal Q-Q - this thing somehow check for normality?
+3. Scale-Location - same thing as plot 1, Residuals vs Fitted, but here the residuals are standardized
+4. Residuals vs Leverage - looks for places where you may run into extrapolation issues (residuals are standardized here, too)
+
+# Model selection
+Now we're going to talk about model selection. Specifically, how do you know what features to include in a model or how to compare the quality of multiple models? Well, the bad news is that it's not easy. In a larger dimensional and more automated setting, this topic bleeds into machine learning, but for now we'll hit the high spots and discuss the perils of over/under-fitting models.
+
+## Multiple variables
+So what do you do when you have lots of variables? There's an entire class on prediction and machine learning, so for now we'll focus more on modeling. But an important consideration is that when dealing with prediction problems, we're less concerned with interpretability and more willing to accept complex models. In modeling, we need to shoot for parsimonious, interpretable representations that enhance our understanding of a phenomena. A good way to think about this is to consider the marginal explanatory capability of a feature. If it only adds a tiny bit of value and increases the complexity of the model considerably, then it's probably best to exclude it from the model.
+
+Remember that a model is simply a lense through which you view your data; it isn't necessarily right or wrong, rather it informs your understanding of what you're seeing by contextualizing it. To view fine details of a phenomena, you would need a microscope; to view patterns on a grand scale, you would need a telescope. Different models can be valuable for different purposes.
+
+There are 10 million ways a model can be wrong, but right now we're going to focus on including/excluding variables.
+
+In general, omitting variables that should be included in a model will result in bias. If you don't include something that is correlated with the response you're investigating, you're not going to get accurate estimates because you're leaving out information about the response. Randomization is 1 way to try to address this. Randomization reduces the correlation between this other variable and the response you're studying, which reduces the resulting bias.
+
+Including variables that add no value will not introduce bias, but will inflate standard errors (actual, not estimated) of other regressors. This can also affect $R^2$. $R^2$ increases monotonically, and the SSE decreases monotonically as more regressors are included, regardless of the regressors' quality. That is, even adding random iid normal variables will increase $R^2$ and decrease SSE without adding real value to the model.
+
+## Code examples
+Let's investigate the effects of including/excluding regressors via code.
+
+### Variance inflation
+We'll start by considering the case where we add unimportant, unnecessary regressors which leads to variance inflation. We'll use a sample size of 100 and run 1000 simulations. We have 3 potential variables, `x1`, `x2`, and `x3`, but `y` is solely a function of `x1` and some noise. Our simulation is to fit 3 models to `y`, including the additional unnecessary `x` variables. We'll then look at the standard deviation of each of the model's `x1` coefficient.
+
+```{r varinflate}
+n <- 100
+nosim <- 1000
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+x3 <- rnorm(n)
+betas <- sapply(1:nosim, function(i){
+     y <- x1 + rnorm(n, sd = 0.3)
+     c(coef(lm(y ~ x1))[2],
+       coef(lm(y ~ x1 + x2))[2],
+       coef(lm(y ~ x1 + x2 + x3))[2])
+})
+round(apply(betas, 1, sd), 5)
+```
+
+We can see that the standard deviation is roughly the same for each model, and that is because `x2` and `x3` were totally random and had no correlation to `x1`. What happens if `x2` and `x3` are highly correlated with `x1` instead?
+
+```{r varinflate2}
+n <- 100
+nosim <- 1000
+x1 <- rnorm(n)
+x2 <- x1/sqrt(2) + rnorm(n)/sqrt(2)
+x3 <- x1 * 0.95 + rnorm(n) * sqrt(1 - 0.95^2)
+betas <- sapply(1:nosim, function(i){
+     y <- x1 + rnorm(n, sd = 0.3)
+     c(coef(lm(y ~ x1))[2],
+       coef(lm(y ~ x1 + x2))[2],
+       coef(lm(y ~ x1 + x2 + x3))[2])
+})
+round(apply(betas, 1, sd), 5)
+```
+
+Now we can see that the variance increases pretty dramatically. This is the effect of including variables that are highly correlated.
+
+#### Variance inflation factors
+
+* notice that variance inflation was much worse when we included a variable that was highly related to `x1`
+* we don't know $\sigma$, so we can only estimate the increase in the actual standard error of the coefficients for including a regressor
+* however, $\sigma$ drops out of the relative standard errors. If one sequentially adds variables, one can check the variance (or sd) inflation for including each one
+* when the other regressors are actually orthogonal to the regressor of interest, then there is no variance inflationn
+* the variance inflation factor (VIF) is the increase in the variance for the $i^{th}$ regressor compared to the ideal setting where it is orthogonal to the other regressors
+     * the square root of the VIF is the increase in the sd
+* remember, the variance inflation is only part of the picture, we want to include certain variables, even if they dramatically increase the variance
+
+#### Swiss data
+Let's use the swiss data to look at the variance inflation factors (VIF).
+
+```{r swiss}
+library(car)
+data(swiss)
+fit <- lm(data = swiss, Fertility ~ .)
+vif(fit)
+sqrt(vif(fit)) # standard deviation inflation
+```
+
+So what does the above mean? Well, it means that the `Agriculture` variable has a standard error (first line, `vif(fit)`) roughly double what it would be if `Agriculture` were orthogonal to the other variables. We can also see (again, line 1) that `Examination` and `Education` have pretty high VIF's, because those 2 variables are pretty highly correlated. `Infant Mortality`, on the other hand, doesn't seem to be correlated with any of the other variables, and as such its VIF is pretty low.
+
+#### Residual variance estimation
+So far we've only discussed the effects of including/excluding variables *on our regression coefficients*. But what effect might this have on the variance of our residuals, those iid error terms that we include in the regression model?
+
+If we underfit the model, that is, if we omit variables that should be included, then the variance estimate will be biased. If we overfit, including all necessary covariates and/or unnecessary covariates, then the variance estimate is unbiased, but its variance (spread) is larger, making it a less reliable estimate.
+
+He also notes here that principal component analysis (PCA) or singular value decomposition is a good tool for dimensionality reduction, although it can make your model less interpretable. He also says that good design can sometimes eliminate the need for complex modeling tasks at the anlaysis level, but you frequently don't have that much control over the experimental design.
+
+## Nested model ratios
+It's also possible to use nested models to examine the differences between them. This means that you successively build on a model to add complexity and then investigate the effects that each layered change caused.
+
+Here's an example:
+```{r nest}
+fit1 <- lm(data = swiss, Fertility ~ Agriculture)
+fit2 <- update(fit, Fertility ~ Agriculture + Examination + Education)
+fit3 <- update(fit, Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality)
+anova(fit1, fit2, fit3)
+```
+
+That's all well and good, but I need to read up on how to interpret that `anova` output... Regardless, fucking done with this week, finally!
