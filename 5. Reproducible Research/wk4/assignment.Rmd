@@ -1,0 +1,156 @@
+---
+title: "5. Reproducible Research - Week 4 Assignment"
+output: html_notebook
+---
+
+# The dataset
+This assignment looks at storm event data found [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2). It runs from 1950 to 2011, but the earlier data is spotty and less complete.
+
+We'll be using these packages:
+
+* dplyr
+* ggplot2
+* stringr
+
+Now we download the dataset, if necessary.
+
+```{r download, echo = FALSE}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+## setup URL and path variables for this data
+bzurl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+datapath <- "./data/assignment"
+filename <- "stormData.csv.bz2"
+filepath <- paste0(datapath, "/", filename)
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath, recursive = TRUE)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+
+# download/unzip/delete zip as necessary
+if (is.element(filename, dir(datapath))) {
+     print("found data, ready to go")
+} else {
+     download.file(bzurl, destfile = paste0(datapath, "/", filename))
+     print("downloaded data, ready to go")
+}
+```
+
+And now we have the data. Let's get started.
+
+# Pre-processing
+In this section we'll perform any broad-strokes transformations.
+
+```{r readdf}
+if (!is.element("df", ls())) {
+     df <- read.table(bzfile(filepath), sep = ",", header = TRUE, check.names = TRUE)
+}
+```
+
+```{r bgndatetimes}
+# convert column 1 to factor
+df[, 1] <- as.factor(df[, 1])
+df <- df %>% mutate(ogRow = seq_len(dim(df)[1])) %>% select(ogRow, everything())
+
+# datetime DATA FRAME METHOD!!!
+
+# grab row#, date, time, make d/t char, get lengths of d/t, make 'date' from date half of ogDate
+# cast 'date' as date class, then convert to char (to standardize format); then reorder columns
+bgndtdf <- df %>% select(ogRow, BGN_DATE, BGN_TIME) %>% rename(ogDate = BGN_DATE, ogTime = BGN_TIME) %>%
+     mutate(ogDate = as.character(ogDate), ogTime = as.character(ogTime),
+          dlen = lengths(strsplit(ogDate, "")), tlen = lengths(strsplit(ogTime, ""))) %>%
+     mutate(tmpdate = sapply(strsplit(as.character(ogDate), " ", fixed = TRUE), function(x) x[1])) %>%
+     mutate(tmpdate = strftime(as.Date(tmpdate, "%m/%d/%Y"))) %>% rename(chardate = tmpdate) %>%
+     select(ogRow, ogDate, dlen, chardate, ogTime, tlen)
+
+# how many 'groups' of times are we dealing with?
+levels(factor(bgndtdf$tlen))
+
+## FUCKEVERYGODDAMNTHINGABOUTTHIS!!!
+charbgnDTs <- bgndtdf %>%
+     mutate(hour = substr(ogTime, 1, 2),
+            minute = ifelse(tlen == 4,
+                            substr(ogTime, 3, 4),
+                            substr(ogTime, 4, 5)),
+            ampm = ifelse(tlen == 11,
+                          substr(ogTime, tlen - 1, tlen),
+                          NA)) %>%
+     select(ogRow, chardate, ogTime, tlen, hour, minute, ampm) %>%
+     mutate(flag = "0",
+            flag = ifelse(tlen == 4 & hour == "24",
+                          "1",
+                          flag),
+            hour = ifelse(tlen == 4 & hour == "24",
+                          "00",
+                          ifelse(tlen == 11 & hour == "00" & ampm == "AM",
+                                 "12",
+                                 hour)),
+            hour = ifelse(tlen == 11 & as.integer(hour) > 12,
+                          as.character(as.integer(hour) - 12),
+                          hour)) %>%
+     mutate(chartime = ifelse(tlen == 4,
+                              paste0(hour, minute),
+                              ifelse(tlen == 11,
+                                     paste0(hour, ":", minute, ":", substr(ogTime, 7, 9), ampm),
+                                     ogTime))) %>%
+     mutate(tempdt = paste(chardate, chartime)) %>%
+     select(ogRow, tlen, flag, tempdt)
+
+mils <- charbgnDTs %>%
+     filter(tlen == 4) %>%
+     mutate(bgnDT = as.POSIXct(strptime(tempdt, format = "%Y-%m-%d %H%M")))
+
+apms <- charbgnDTs %>%
+     filter(tlen == 11) %>%
+     mutate(bgnDT = as.POSIXct(strptime(tempdt, format = "%Y-%m-%d %r")))
+
+tmpdf <- bind_rows(mils, apms) %>% arrange(ogRow)
+
+df <- left_join(df, tmpdf, by = "ogRow") %>% select(1:2, bgnDT, 5:38)
+
+# if flag = "1", add 1 to day (yeah, fuck everything about that...)
+
+#tlen == 4 & hour == 24                        # 13
+#tlen == 4 & minute >= 60                      # 6
+#tlen == 11 & hour == "00" & ampm == "AM"      # 4128
+#tlen == 11 & hour == "00" & ampm == "PM"      # none
+#tlen == 11 & hour == "24"                     # none
+#tlen == 11 & hour == "12" & ampm == "AM"      # 20365
+#tlen == 11 & hour == "12" & ampm == "PM"      # 23894
+#tlen == 11 & hour > 12
+```
+
+OK, ALL OF THE ABOVE EFFORT was simply to transform the `BGN_DATE` and `BGN_TIME` columns into posixct format. The `END_DATE` and `END_TIME` columns look like they'll be an even bigger PITA, so fuck them. We're just going to move on with the analysis. I'll fix those date times, and any other columns, as I need to...
+
+# Question 1: Which types of events are most harmful to people's health?
+Let's first just break it down by explicit `EVTYPE`
+
+```{r healthimpact}
+killrs <- df %>% select(ogRow, EVTYPE, FATALITIES, INJURIES) %>%
+     mutate(newEvType = tolower(as.character(EVTYPE))) %>%
+     mutate(newEvType = trimws(str_replace_all(newEvType, "[\\(\\)\\-/\\\\]", " "))) %>%
+     mutate(newEvType = str_replace_all(newEvType, "\\s{2,}", " ")) %>%
+     mutate(newEvType = str_replace_all(newEvType, "s$", "")) %>%
+     mutate(newEvType = str_replace_all(newEvType, "\\.$", "")) %>%
+     mutate(newEvType = str_replace_all(newEvType, "winds", "wind"))
+
+killrtbl <- killrs %>% group_by(newEvType) %>%
+     summarise(totalFatalities = sum(FATALITIES), totalInjuries = sum(INJURIES),
+               mayhem = sum(FATALITIES, INJURIES)) %>%
+     filter(totalFatalities > 0 | totalInjuries > 0) %>%
+     arrange(desc(mayhem))
+```
+
+```{r dollaimpact}
+costrs <- df %>% select(ogRow, EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>%
+     mutate(PropExpChar = tolower(as.character(PROPDMGEXP)), CropExpChar = tolower(as.character(CROPDMGEXP))) %>%
+     mutate(PROPDMGEXP = as.factor(PropExpChar), CROPDMGEXP = as.factor(CropExpChar)) %>%
+     select(1:4, PropExpChar, CROPDMG, CROPDMGEXP, CropExpChar)
+```

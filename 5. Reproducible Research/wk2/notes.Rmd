@@ -1,0 +1,149 @@
+---
+title: "5. Reproducible Research - Week 2 Notes"
+output: html_notebook
+---
+
+# Markdown & knitr
+
+## Coding standards in R
+Obviously, use a text editor, save as a text file. Indent your code, let's say 5-8. And limit the length of your functions. This helps with debugging.
+
+## Markdown
+Markdown is meant to be a simplified markup language. This is just a basic tour of markdown. Look at the source code as well as the rendered page to see what's going on.
+
+# Heading 1
+## Heading 2
+### Heading 3
+
+*italics*
+
+**bold**
+
+***both***
+
+- list1
+- list2
+
+
+1. list1
+2. list3
+4. listwut? (mkay, didn't know that, that's cool)
+
+
+[link text](www.google.com)
+
+
+additional text stuff [here][1] and [here][2]
+
+
+New lines require a double space at the end of line 1  
+Like that.
+
+Otherwise the lines will
+run together.
+
+[1]: www.google.com "Google"
+[2]: www.pornhub.com "Pr0n"
+
+---
+
+## R Markdown
+R markdown is the integration of R code and markdown via "code chunks." The resulting document is a markdown file that can be evaluated in R to actually do shit and even insert the results into the document.
+
+R markdown is converted to standard markdown via the `knitr` package in R. Basically, `knitr` reads an R markdown file, evaluates the R code chunks, then plugs in the results to the text part of the file and spits out a regular markdown file. This markdown file can then be turned into HTML using the `markdown` package in R.
+
+Any basic text editor can be used to make markdown documents, which is nifty. And the point of all this is that you never edit the intermediate markdown file or the final HTML document. You just edit the R markdown bit and the rest is instantly reproducible.
+
+### R Markdown Demo
+See `demo.Rmd` for this segment.
+
+---
+
+## `knitr()`
+So it turns out that data analysis is a mess. It's personal, can be unorganized, and difficult to share. Authors have to do a shit load of work to get their data/analysis out there on the web, especially in a way that anyone else can make sense of it. Data consumers have to download tons of different stuff, dig through lots of directories, and try to track with what an author did. This is a disaster.
+
+This is what literate programming is all about. You have a single document that manages everything and keeps your analysis together. (Or maybe multiple documents that are referenced within one another.) This document can be **weaved** to produce a human readable document, or **tangled** to produce a machine readable document.
+
+It's best to do this from the beginning and keep everything in git. Use software that can be coded (like R), never save any output (with the exception of maybe your raw/processed data), and don't use proprietary formats for your data or analytical files.
+
+### What is `knitr`?
+`knitr` is a package written by a guy much smarter than you (Yihui Xie) which supports RMarkdown, LaTeX, and HTML as documentation languages. It can export to PDF and HTML, and it's built into RStudio.
+
+### How do you use `knitr`?
+You can do it directly in RStudio with the new R Markdown document button. Then type some shit, press the "knit" button, and bam, you're done.
+
+Otherwise, you can use `knit2html("file.Rmd")` to knit an .Rmd file into HTML.
+
+So let's talk about format. Code chunks go between \```{r} and \```. Code chunks can have names like this:
+
+
+```{r fistchunk, echo=TRUE}  
+## R code goes here
+```
+
+The default behavior is to `echo` the code chunk and print its results and results persist across chunks.
+
+### Flow
+* so you write the .Rmd file
+* knitr does stuff in R and then produces a .md file
+* knitr then converts the .md file to HTML (by default)
+
+### Code chunks
+We've already talked about how they can have names, and the R objects are persistent. You can also add other arguments to code chunks to alter their behavior.
+
+The `echo=FALSE` argument prevents the printing of the code chunk itself, while still printing the results.
+
+The `results="hide"` option will suppress the printing of the results (although the R code will still be evaluated).
+
+The `eval=FALSE` argument will print a code chunk but not actually evaluate it.
+
+You can put bits of R code in-line with `{r code here}`.
+
+You can also create graphics in .Rmd files. Let's say you create this code chunk:
+
+```{r simdata, echo=TRUE}  
+x <- rnorm(100); y <- x + rnorm(100, sd=0.5)  
+```
+
+Then you can create a scatterplot:  
+
+```{r scatter, fig.height=4}  
+par(mar = c(5, 4, 1, 1), las = 1)  
+plot(x, y, main = "Dummy Data")  
+```
+
+**NOTE**: knitr actually creates the image and embeds it directly into the HTML document. This might not be the most efficient method, but it allows the document to stand entirely on its own.
+
+You can also make a table with knitr. Let's fit a model to the airquality data.
+
+```{r fitmodel}  
+library(datasets)  
+data(airquality)  
+fit <- lm(Ozone ~ Wind + Temp + Solar.R, data = airquality)  
+```
+
+Now we can make a table of the regression coefficients:
+
+```{r showtable, results="asis"}
+library(xtable)
+xt <- xtable(summary(fit))
+print(xt, type = "html")
+```
+
+### Global Code Chunk options
+You can control the global code chunk options with a code chunk at the beginning of the document. There's a special object called `opts_chunk`, and within that object, there's an element called `set`. By calling this element of this object, you can pass global code chunk options to `knitr`.
+
+```{r chnkopts, eval=FALSE}
+opts_chunk$set(echo = FALSE, results = "hide")
+```
+
+These options can be overridden for each individual code chunk.
+
+#### Some common options:
+- results = "asis", "hide"
+- echo = TRUE, FALSE
+- fig.height = numeric
+- fig.width = numeric
+
+### Caching
+All chunks are recomputed every time you knit the file. This can be a burden if you have some computations that take a long time to run. You can use the `cache=TRUE` option to store the results of a specific chunk. Then, after you knit the file for the first time, the results will be loaded from cache upon re-knitting. (Note that this won't work between sessions; for that you'll need to consider longer term storage solutions.)

@@ -1,0 +1,109 @@
+---
+title: "5. Reproducible Research - Week 3 Notes"
+output: html_notebook
+---
+
+# Communicating Results
+Even when your research is organized in a reproducible manner, it's still going to be kind of messy. There's a lot of stuff packaged in your results, and you've got to know how to communicate it effectively.
+
+**tl;dr**:
+
+* people are busy, especially managers and leaders
+* oral presentations are good, but you've got to know how to get your point accross via email
+* it's useful to think in terms of different levels of granularity/detail
+
+## Hierarchy of information: research paper
+
+* title, author list
+* abstract - couple hundred words about motivation, bottom line
+* body/results - elucidate findings, explain conclusions
+* supplementary materials - the gory details
+* code/data - the most gory details
+
+## Hierarchy for emails
+
+* subject line - summarize findings in 1 sentence
+* email body
+     * brief description of problem/context. Recall what was proposed and executed. Summarize findings
+     * if action is needed, suggest options and make them as concrete as possible
+     * if questions need answers, shoot for yes/no
+* attachments
+     * in this setting, use knitr for visual reports, don't deliver 10 pages of R code
+     * if they need 10 pages of R code, use github repo
+     
+## RPubs
+This is a nifty RStudio platform that lets you publish Rmarkdown/knitr documents to the web. It's basically a publicly accessible profile, might be a good place to stick work as a kind of portfolio.
+
+# Reproducible Research Checklist
+
+* **DO**: start with good science
+     * garbage in, garbage out
+     * cannot stress enough, the question is super important. make it focused, make it coherent. Keep it secret, keep it safe.
+     * try to work with good collaborators. You need them to help hold you accountable to best practices
+     * do shit you're interested in
+* **DON'T**: do things by hand
+     * this is stupid
+     * don't do stupid things
+     * don't edit spreadsheets to "clean up data"
+     * don't edit tables or filters
+     * don't download data from a web site by clicking (although this is forgivable if you WRITE EVERYTHING DOWN!)
+     * don't move data files, split them, reformat them
+     * don't do anything if you just said "We're just going to do this once..."
+* **DON'T**: point and click
+     * GUIs are dogshit
+     * you can't track clicks, so you can't reproduce clicks
+     * some GUIs try really hard to track clicks and give you a file to reproduce clicks. Try to use this if available
+     * beware "interactive" software; thar be dragons
+     * nut up and use a text editor
+* **DO**: teach a computer
+     * script yo shit, even if you're just doing it once
+     * computers are dumb so you have to be explicit; being explicit is good for data analysis
+     * this is basically the whole fucking point
+     * instead of clicking to download, save, and unzip a file, just `download.file()`
+     * again, this is basically the whole fucking point
+* **DO**: use version control
+     * version control give you a log
+     * version control slows you down (and makes you think)
+     * version control is the bees knees
+* **DO**: track/catalog your software environment
+     * computer architecture
+     * OS
+     * software toolchain: compilers, interpreters, command shell, languages, database backends, analysis software
+     * supporting software/infrastructure: libraries, R packages, dependencies
+     * external dependencies (beware!): websites, data repos, remote databases, software repos
+     * version numbers: ideally, for everything
+     * **OR** just say fuck it and let docker do the heavy lifting here :)
+* **DON'T**: save output
+     * instead, save the shit that built the output
+     * it's ok to do this in stages though, for efficiency
+* **DO**: set your seed
+     * random is really pseudo-random
+     * `set.seed()` makes random numbers reproducible
+     * always set your seed
+* **DO**: think about the total pipeline
+     * data analysis is a long process, not just tables/figures/reports
+     * how you go there is just as important as the results themselves
+     * try to capture as much of the analysis pipeline as you can via reproducible methods
+     
+# Evidence-based analysis
+Replication and reproducibility.
+
+Replication focuses on the validity of a scientific claim. If something is true, then you should be able to reset the dominos and watch the same thing happen again; that's replicating a study. This is the ultimate standard for strengthening scientific evidence, and that's how we find truth. Involves new everything, new investigators, data, methods, equipment, etc.
+
+Reproducibility focuses on *this* analysis and its validity. Can we trust this particular analysis. It's not resetting the dominos, it's how you know if the last guy even counted the dominos correctly. Basically the minimum standard for any scientific study. Involves new investigators, but the same data and methods. Important when replication is impossible.
+
+The trend in data analysis is making data larger, statistical methods more complex, and putting data into everyone's hands (which is kinda stupid). This is why you have to focus on reproducibility: guide the dummies through your analysis, and be crystal clear for the next smart guy.
+
+What problems does reproducibility solve?
+
+* we get
+     * transparency
+     * data availability
+     * software/methods availability
+     * improved transfer of knowledge
+* we don't get
+     * validity (correctness of analysis)
+
+Things can be reproducible and still be wrong.
+
+The rest of this week is more of a discussion of reproducibility and its role in actual ongoing science. Not what I'm looking for.

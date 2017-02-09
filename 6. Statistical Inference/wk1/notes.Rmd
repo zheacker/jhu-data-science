@@ -1,0 +1,242 @@
+---
+title: "6. Statistical Inference - Week 1 Notes"
+output: html_notebook
+---
+
+# WTF is statistical inference?
+Statistical inference is "generating conclusions about a population from a noisy sample." Consider predicting an election result based on a sample of voters today. Some people might not turnout. Some people might change their mind. The goal is to pull together all of that uncertainty to infer the true nature of the problem.
+
+This class embraces the "frequentist" statistical view, which is (perhaps?) opposed to the Bayesian view. The frequentist would say that if you flip a coin infinitely many times, the frequency with which it lands on heads would define some intrinsic property of coin flipping. (Not sure I really get the Bayesian view yet...)
+
+## Some Housekeeping
+The most up-to-date material for this course can be found at the [git repo](https://github.com/bcaffo/courses/tree/master/06_StatisticalInference). Just in case you need it. They say to clone it, but what the fuck do they know? YOU'RE NOT MY SUPERVISOR! The videos are also on [YouTube](https://www.youtube.com/playlist?list=PLpl-gQkQivXiBmGyzLrUjzsblmQsLtkzJ). And there's a [LeanPub](https://leanpub.com/LittleInferenceBook) book that you can buy (I should have this, I think?).
+
+There are 13 lectures, 4 quizzes (which I can't complete), some optional homework assignments, and a course project. The homework problems come from the book, so it's probaby just best to find them and work through them there. Go forth and data.
+
+# Intro to Probability
+This is the whole chimichanga. Probability is the basis for pretty much everything in statistical analysis, and it assigns a number between 0 and 1 to events in order to express the event's likelihood. The eventual goal is to use probability models to connect our data to a population. But first, some probabilistic arithmetic.
+
+Given a random experiment (say rolling a die), a probability measure is a *population quantity* that summarizes randomness. The notion of *population quantity* is important here. Conceptually, what we mean is that probability is not confined to the die, or to a series of rolls of the die, but rather it is an intrinsic property of the system/population that we need to estimate.
+
+Specifically, probability takes a possible outcome from an experiment:
+
+* the die roll was 1
+* roll was in the **set** {1, 2}
+* roll was even; set {2, 4, 6}
+* roll was odd; set {1, 3, 5}
+
+and assigns it a number between 0 and 1 so that the probability that something occurs is 1 (the die must be rolled) and that the sum of all mutually exclusive probabilities is 1.
+
+## Rules that probability must follow
+
+1. The probability that nothing occurs is 0
+2. The probability that something occurs is 1
+3. The probability of something is 1 minus the probability that the opposite occurs
+     - P(odds) = 1 - P(evens)
+4. The probabilities of mutually exclusive outcomes sum to 1
+5. If event A implies the occurence of event B, then the P(A) < P(B)
+     - If A: roll a 1, and B: roll {1, 2}, then P(A) < P(B)
+6. For any 2 events, the probability that at least 1 occurs is the sum of their respective probabilities minus their intersection
+     - If you just add P(A) and P(B), and there is an intersection in their probabilities, then you've overcounted that intersection, so you must subtract it out.
+
+Let's say 3% of the population has sleep apnea, and 10% have restless leg syndrome. Can we then say that 13% have at least one of those 2 conditions? No. They're not mutually exclusive, so the probabilities are not simply additive. We must subtract out the intersection between them.
+     
+## Probability functions
+So now we'll talk about density and mass functions. A **random variable** is a numerical outcome of an experiment, and can be either **discrete** or **continuous**. A coin flip is discrete with 2 levels, 0 and 1, heads and tails. Coins and dice are really simplistic, but another discrete random variable (albeit with no upper bound) might be web traffic in a given day. BMI would be continuous.
+
+### PMF
+A probability mass function (PMF) evaluated at a specific value corresponds to the probability that a random variable takes that value. PMFs must satisfy:
+
+1. must always be >= 0
+2. the sum of the possible values that the random variable can take must be 1
+
+#### Bernoulli Distribution
+The coin-flip distribution. `X = 0` represents tails, `X = 1` represents heads. So the Bernoulli distribution is:
+
+     p(x) = (1/2)^x * (1/2)^(1-x), for x = 0,1
+     
+If `x = 0 or 1` then `p = 0.5`.
+
+But what if we have an unfair coin?
+
+     p(x) = theta^x * (1 - theta)^(1 - x)
+     
+Now if `x = 1` then `p = theta`, and if `x = 0` then `p = 1 - theta`.
+
+### PDF
+A probability density function (PDF) is a function associated with a continuous random variable. PDFs must satisfy:
+
+1. must be >= 0 everywhere
+2. the total area under the curve must be = 1
+
+Areas under PDFs correspond to probabilities for that random variable. So if IQs are normally distributed with a mean = 100 and a standard deviation = 15, then the area under the bell curve between 100 and 115 would correspond to the probability that a data point would fall in that range.
+
+Let's dumb things down from the normal distribution. Let's look at
+
+     f(x) =    {2x       for 0 < x < 1
+               {0        otherwise
+
+So this is basically a triangle. We'll imagine it's the distribution for the number of calls answered per day at a call center.
+
+```{r tridist}
+x <- c(-0.5, 0, 1, 1, 1.5)
+y <- c(0, 0, 2, 0, 0)
+plot(x, y, lwd = 3, frame = FALSE, type = "l")
+```
+
+This is actually a special case of the beta distribution, and you can find the probability with
+
+```{r beta}
+pbeta(0.75, 2, 1)
+```
+
+### CDF
+The cummulative distribution function (CDF) of a random variable `X` returns the probability that the random variable is <= some value `x`.
+
+     F(x) = P(X <= x)
+     
+For our triangle distribution, this works out to be
+
+     F(x) = P(X <= x) = 1/2 * base * height = (1/2)x * 2x = x^2
+
+### The survival function
+The survival function is basically the opposite of the CDF. It's the probability that `X` is > `x`.
+
+     S(x) = P(X > x)
+
+### Quantiles
+You know what quantiles are, but those are sample quantiles. If you're in the 95th percentile for your test scores, you're just looking at your sample of test scores. This can be generalized to populations. The `alpha`th quantile of a distribution with function `F` is the point `x_alpha` so that
+
+     F(x_alpha) = alpha
+
+Basically, given a distribution function, `x_alpha` is the point at which the area under the curve and bounded by `x_alpha` is = `alpha`.
+
+So in order to find the median of this distribution, that is to say the point at which the outcomes `X <= x` and `X > x` are equally likely, we would set `F(x) = 0.5` and find `x`. Here, that turns out to be 0.7071. So 50% of the time, 70% or fewer of the calls get answered; 50% of the time, more than that get answered.
+
+In R, you can find the quantiles with the `q<dist>()` functions. `r<dist>()` will generate random variables, and `q<dist>()` will give you the quantiles. (So `rnorm()` and `rpois()` vs. `qnorm()` and `qpois()`.)
+
+# Conditional Probability
+In a die roll, the P(1) = 1/6. But if someone rolled the die behind a curtain and told you it was odd, you wouldn't say P(1) = 1/6; you would say it's 1/3. This is conditional probability.
+
+Here's the formal definition:
+
+     Let B be an event so that P(B) > 0
+     P(A | B) is read: the P(A) given that P(B) has occurred.
+     P(A n B) is read: the probability of the intersection of A & B (probability of A intersect B)
+     
+     then:
+          P(A | B) = P(A n B)/P(B)
+          
+If A and B are unrelated, then there is no intersection and the above reduces to:
+
+     P(A | B) = P(A)P(B)/P(B) = P(A)
+     
+This makes sense: if A doesn't depend on B at all, then B's occurrance doesn't impact P(A).
+
+Let's apply this to the dice thing. Let's make `B = {1, 3, 5}` and `A = {1}`. Then `P(A | B)` is the probability of the roll being 1 when we know that the roll was odd. In this case, A lies entirely in B (if the die is a 1, then it satisfies entirely both outcomes A and B), so here `P(A n B)` is just `P(A)`. So
+
+     P(A | B) = P(A)/P(B) = (1/6)/(3/6) = 1/3
+
+## Bayes' rule
+Bayes' rule is a way to calculate `P(B | A)` if you know `P(A | B)`, but you need some additional information. It looks like this:
+
+     P(B | A) =               P(A | B)P(B)
+                                   /
+                      P(A | B)P(B) + P(A | Bc)P(Bc)
+
+This is useful for diagnostic tests.
+
+### Diagnostic tests
+Let + and - be the events that the result of a diagnostic test is positive or negative. And let `D` and `Dc` (that's D-compliment) be the event that the subject has or does not have the disease, respectively.
+
+Then:
+
+     sensitivity =                      P(+ | D)
+     specificity =                      P(- | Dc)
+     positive predictive value =        P(D | +)
+     negative predictive value =        P(Dc | -)
+     prevalence of disease =            P(D)
+
+Let's assume a sensitivity of 99.7% and a specificity of 98.5%. Also assume a population with a 0.1% prevalence of the disease. What's the positive predictive value?
+
+We're looking for `P(D | +)`. Let's plug directly into Bayes' rule:
+
+     P(D | +) =               P(+ | D)P(D)
+                                   /
+                      P(+ | D)P(D) + P(+ | Dc)P(Dc)
+                      
+Now we can fuck with those compliments. `P(+ | Dc) = [1 - P(- | Dc)]`. Let that sink in. The probability that you test positive when you don't have the disease is the same as 1 minus the probability that you test negative when you don't have the disease. Additionally, `P(Dc) = 1 - P(D)`.
+
+Now the equation can be written only in terms that we know:
+
+     P(D | +) =                 P(+ | D)P(D)
+                                      /
+                    P(+ | D)P(D) + [1 - P(- | Dc)][1 - P(D)]
+
+Then it's plug and play. `(.997 * .001) / ((.997 * .001) + (.015 * .999)) = .062`
+
+These values can be fucked with a bit to yield:
+
+     P(D | +)       P(+ | D)       P(D)
+        /        =      /       X   /
+     P(Dc | +)      P(+ | Dc)      P(Dc)
+
+The leftmost term is the "odds" of having a disease given a positive test result.
+The rightmost term is the odds of having that disease without a positive test result.
+And the middle term is the factor by which you multiply your pre-test odds, or the diagnostic likelihood ratio for a positive test result.
+
+## Independence
+A is independent of B if `P(A | B) = P(A) where P(B) > 0`. Another way, A is independent of B if `P(A n B) = P(A)P(B)`.
+
+As a numerical example, what are the odds of getting a heads on 2 consecutive coin flips? Let A be heads on flip 1, and B be heads on flip 2. So `P(A) = P(B) = 0.5`.
+
+`A n B` (A intersect B) is getting heads on 1 and 2. Because these events are independent, we can multiply their probabilities. But multiplying probabilities isn't straightforward for 2 events that are **not** independent.
+
+For this class, we are going to assume that random variables are IID, or independent and identically distributed. That is, all random variables are independent from one another, and drawn from the same distribution.
+
+# Expected values
+So to recap, the point here is to use a small sample of data to make some inference about a larger population. To do that, we assume that there are probability mass and density functions that, along with some noise, generate our data. We can discuss the functions in terms of some of their general characteristics. These parameters can be drawn from our sample to provide sample estimates, and they will estimate the population.
+
+So there are a few parameters that we already know. Mean, variance, standard deviation. And those sample values would estimate the respective population values.
+
+The expected value, or mean, of a random variable is the center of the distribution. `E[X] = Simga_x( x*p(x) )`. This is basically the center of mass of a 1-dimensional system.
+
+Let's talk about the coin flip. The expected value `E[X] = 0.5 * 0 + 0.5 * 1 = 0.5`. Similarly, a die roll has an expected value of 3.5.
+
+## Facts about expected values
+
+* They are properties of distributions.
+* Note that the average of random variables is itself a random variable and its associated distribution has an expected value.
+* The center of *this* distribution is the same as that of the original distribution
+
+The above allows us to say that the sample mean is **unbiased** because its distribution is centered at what it's trying to estimate.
+
+So let's talk about estimating the mean of the normal distribution. First, we can plot 10000 normal random variables to make a histogram/distribution of the normal curve. Woot. *But then*, we can simulate **10** normals 10000 times, and take the average of those 10 normals, resulting in 10000 averages of 10 normals.
+
+```{r bias}
+x <- rnorm(10000, 0, 1)
+xmean <- mean(x)
+
+y <- sapply(rep(10, 10000), function(x) rnorm(x, 0, 1))
+ymeans <- colMeans(y)
+
+qplot(x)
+
+qplot(ymeans)
+```
+
+The most important thing to note here is that both of those distributions are centered in the same place. Also, the distribution of averages is less variable, but more on that later, I think?
+
+Similarly, the distribution of *averages* of 2 die rolls at a time will be centered on 3.5, just like the distribution of die rolls.
+
+And the distribution of averages of 10 coin flips will always be centered at 0.5, just like the distribution of coin flips.
+
+So here's a quick summary of what we know:
+
+* expected values are properties of distributions
+* the population mean is the center of mass of the population
+* the sample mean is the center of mass of the observed data
+* the sample mean is an estimate of the population mean
+* the sample mean is unbiased
+     * the population mean of its distribution is the mean that it's trying to estimate (the random variables that make up the distribution of averages are in fact means of the population)
+* the more data that goes into a sample mean, the more concentrated its density/mass function is around the population mean
