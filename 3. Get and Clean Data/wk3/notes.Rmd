@@ -1,0 +1,457 @@
+---
+title: "3. Get and Clean Data: Week 3 Notes"
+output: html_notebook
+---
+
+# Install/load packages
+In this section I dealt with all the package installation/loading. Well, packages are now installed at the docker image level, and loading will be handled as needed. So, moving on...
+
+# Organizing & Managing Data
+
+### Subsetting & Sorting
+Quick review:
+
+```{r}
+set.seed(13435)
+x <- data.frame("var1"=sample(1:5), "var2"=sample(6:10), "var3"=sample(11:15))
+x <- x[sample(1:5), ]
+x$var2[c(1, 3)] = NA
+x
+```
+
+You can subset a specific column with `x[, 1]`. You can get the same thing with `x[, "var1"]`. You can subset rows and columns with `x[1:2, "var2"]`.
+
+```{r}
+x[, 1]
+x[, "var2"]
+x[1:2, "var3"]
+```
+
+### Subsetting with logic
+``` {r}
+x[(x$var1 <= 3 & x$var3 > 11), ]
+x[(x$var1 <= 3 | x$var3 > 11), ]
+```
+
+The `which()` command returns indices and excludes `NA`'s by default, so this:
+```{r}
+x[which(x$var2 > 8), ]
+```
+
+### Sorting
+
+```{r}
+sort(x$var1)
+sort(x$var1, decreasing = TRUE)
+sort(x$var2, na.last = TRUE)
+```
+
+You can also order a data frame by a particular variable/column.
+
+```{r}
+x[order(x$var1), ]
+x[order(x$var1, x$var3), ]
+```
+
+The `plyr` package lets you order with the `arrange()` command.
+
+```{r}
+library(plyr)
+arrange(x, var1)
+arrange(x, desc(var1))
+```
+
+### Adding rows/columns
+You can add a new column just by naming it.
+
+```{r}
+x$var4 <- rnorm(5)
+cbind(x, rnorm(5))
+x
+```
+
+## Summarizing Data
+Let's download some data (Baltimore restaurant dataset), then read it:
+
+```{r}
+## setup URL and path variables for this data
+resturl <- "http://data.baltimorecity.gov/api/views/k5ry-ef3g/rows.csv?accessType=DOWNLOAD"
+dirpath <- getwd()
+datapath <- paste0(dirpath, "/data")
+restpath <- paste0(datapath, "/restaurants.csv")
+getwd()
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created data directory")
+} else {
+     print("data directory already exists")
+}
+
+## if there's no data, then download it
+if(!file.exists(restpath)) {
+     download.file(url = resturl, destfile = restpath, method = "wget")
+     print("downloaded the data file")
+} else {
+     print("found data, ready to go")
+}
+
+restData <- read.csv(restpath)
+```
+
+### First, look at a bit of data
+```{r}
+head(restData, 5)
+tail(restData, 5)
+summary(restData)
+str(restData)
+quantile(restData$councilDistrict, na.rm = TRUE)
+quantile(restData$councilDistrict, probs = c(0.5, 0.75, 0.9))
+```
+
+You can also make tables for variables with
+```{r}
+table(restData$zipCode, useNA = "ifany")
+```
+
+The `ifany` flag adds an `NA` tally to teh table to tell you how many `NA`'s you have.
+
+You can make a 2D table with
+```{r}
+table(restData$zipCode, useNA = "ifany")
+table(restData$councilDistrict, restData$zipCode)
+```
+
+### Checking out missing values
+`sum(is.na(restData$councilDistrict))` counts how man `NA`'s are in that column: `r sum(is.na(restData$councilDistrict))`
+
+`any(is.na(restData$councilDistrict))` tells you whether there are any `NA`'s: `r any(is.na(restData$councilDistrict))`
+
+`all(restData$zipCode > 0)` counts the elements that meet the condition: `r all(restData$zipCode > 0)`
+
+`colSums(is.na(restData))` counts `NA`'s by column: `r colSums(is.na(restData))`; ` all(colSums(is.na(restData)) == 0)` tells you if every column is devoid of `NA`'s: `r all(colSums(is.na(restData)) == 0)`
+
+### Check out specific values
+The `%in%` keyword lets you search for values. `table(restData$zipCode %in% c("21212"))` tells you how many zip codes match those in the vector you provided. Same goes for `table(restData$zipCode %in% c("21212", "21213"))`, it's basically a logical OR.
+
+You can also use that condition to subset the data frame: `restData[restData$zipCode %in% c("21212", "21213"), ]` give you all columns where the rows match those zip codes.
+```{r}
+table(restData$zipCode %in% c("21212"))
+table(restData$zipCode %in% c("21212", "21213"))
+head(restData[restData$zipCode %in% c("21212", "21213"), ])
+```
+
+### Cross tabs
+Let's start with teh data frame, then make some cross tabs:
+
+```{r}
+data("UCBAdmissions")
+df = as.data.frame(UCBAdmissions)
+summary(df)
+xtabs(Freq ~ Gender + Admit, data = df)
+```
+
+You can also do this with multidimensional data, then make flat tables that are easier to read. Here we'll use the warpbreaks dataset (with an added replicate column) as an example:
+
+```{r}
+warpbreaks$replicate <- rep(1:9, len=54)
+xt = xtabs(breaks ~., data=warpbreaks)
+```
+
+The `~.` means to breakdown our variable by all the other variables in `data`. This will be hard to read, so we make a flat table with `ftable(xt)`.
+
+```{r}
+ftable(xt)
+```
+
+Finally, you can see the size of data with `object.size(someData)` or `print(object.size(someData), units="Mb")`.
+
+## Creating New Variables
+We'll use the Baltimore restaurant data again.
+
+### Creating sequences
+Sometimes you want to create a sequence to use as an index for your dataset. You can do this with:
+
+```{r}
+s1 <- seq(1, 10, by=2); s1
+s2 <- seq(1, 10, length=3); s2
+x <- c(1, 3, 8, 25, 100)
+s3 <- seq(along = x); s3
+```
+
+### Creating subset variables
+You can create a `TRUE/FALSE` column with:
+```{r}
+restData$nearMe = restData$neighborhood %in% c("Roland Park", "Homeland")
+head(restData)
+```
+
+Then you can subset the data by the `TRUE`'s.
+
+### Creating binary variables
+Peg known errors in the zip code column like this (because zip codes can't be negative):
+```{r}
+restData$zipWrong = ifelse(restData$zipCode < 0, TRUE, FALSE)
+head(restData)
+```
+
+### Creating categorical variables (from #'s)
+```{r}
+restData$zipGroups = cut(restData$zipCode, breaks = quantile(restData$zipCode))
+head(restData)
+```
+
+This will bucket the zip codes into quartiles, turning quantitative data into categorical data.
+
+You can also do this more succinctly with the `cut2()` command from the `Hmisc` package. Note that cutting produces factor variables.
+
+### Creating factor variables
+`restData$zcf <- factor(restData$zipCode)` just turns the zip codes into factors.
+
+You can relevel factor vectors with `relevel(yesnofactor, ref = "yes")`; you can also convert it back to numerals with `as.numeric(yesnofactor)`.
+
+### mutate
+You can use the `mutate()` function from the `plyr` package to simultaneously calculate a new variable and append it to a dataset as in:
+```{r}
+if("dplyr" %in% (.packages())) {
+     detach("package:dplyr", character.only = TRUE)
+     
+     print("detached dplyr")
+} else {
+     print("dplyr not loaded, no need to detach")
+}
+library(plyr)
+library(reshape2)
+
+restData2 = mutate(restData, zipGroups=cut(zipCode, breaks = 4))
+head(restData2)
+```
+
+### common transformations
+
+* `abs(x)`
+* `sqrt(x)`
+* `ceiling(x)`
+* `floor(x)`
+* `round(x, digits=n)`
+* `signif(x, digits=n)`
+* `cos(x), sin(x)`
+* `log(x)`
+* `log2(x)`
+* `log10(x)`
+* `exp(x)`
+
+**NOTE**: WHAT THE FUCK IS A LOGARITHM!?
+
+## Reshaping data
+Data is usually a train wreck, and the goal is tidy data. We'll use `mtcars` as an example.
+
+```{r}
+head(mtcars)
+```
+
+### Melting data frames
+When you melt a data frame, you tell the function which columns are ID variables and which are measurement variables. `mutate()` then reshapes the data as very tall and skinny; every measure has a row, identified by the combination of ID variables.
+
+```{r}
+mtcars$carname <- rownames(mtcars)
+carMelt <- melt(mtcars, id=c("carname", "gear", "cyl"), measure.vars=c("mpg", "hp"))
+head(carMelt)
+```
+
+Now you can recast the data frame into different shapes. `cylData <- dcast(carMelt, cyl ~ variable)` will put the `cyl` values in the rows, and cast the measure variables in the columns ("variable" means measure variables).
+
+```{r}
+cylData <- dcast(carMelt, cyl ~ variable)
+head(cylData)
+```
+
+This is an aggregation in effect; by default the aggregation is a count of each measure variable (as determined by length). To force a difference method of aggregation, you can call a function in `dcast`.
+
+```{r}
+cylData <- dcast(carMelt, cyl ~ variable, mean)
+head(cylData)
+```
+
+### Averaging values
+You might want to average a measure by the various levels of a factor. Given the `InsectSprays` dataset, you could sum across levels with `tapply` like so:
+```{r}
+tapply(InsectSprays$count, InsectSprays$spray, sum)
+```
+
+You could also do that wiht `split()` and `lapply()` or `sapply()`.
+
+You can also use the `plyr` package. `ddply(InsectSprays, .(spray), summarize, sum=sum(count))` will take the dataset and aggregate across the `spray` variable. We say we want to summarize it, and we define the method of summary we want to use.
+
+```{r}
+head(InsectSprays)
+tapply(InsectSprays$count, InsectSprays$spray, sum)
+
+ddply(InsectSprays, .(spray), summarize, sum=sum(count))
+```
+
+### Take away
+There are good tutorials for `plyr` and `reshape2`, and these are great packages to get familiar with as they make working with data frames more intuitive and comprehensive.
+
+## `dplyr` introduction and background
+`dplyr` is made for working with data frames, which are important analytical constructs. It makes some assumptions that you should know:
+
+* 1 observation per row
+* each column is 1 measure/variable/characteristic
+* the primary implementation that you will use is the default R implementation (although you can also use it with `data.table` and some relational database backends)
+
+`dplyr` doesn't necessarily add any functionality, but it simplifies a lot of functionality, provides a coherene grammar for data manipulation, and is stupid fast (because it's mostly coded in C++).
+
+### `dplyr` verbs
+
+* `select`: return a subset of the columns
+* `filter`: return a subset of the rows (based on a logical condition)
+* `arrange`: reorder the rows
+* `rename`: rename variables
+* `mutate`: add new variables/columns or transform existing ones
+* `summarize`: generate summary statistics of different variables in a data frame, possibly within strata
+
+The first argument is always a data frame. The following arguments act on the frame. The result is a new data frame. Your original data frame must be properly annotated and formatted for this to be useful.
+
+## `dplyr` Basics
+Start by loading the `dplyr` package, download teh chicago data (if necessary), then read it in.
+
+```{r}
+library(dplyr)
+chipath <- paste0(datapath, "/chicago.rds")
+chiurl <- "https://github.com/DataScienceSpecialization/courses/raw/master/03_GettingData/dplyr/chicago.rds"
+
+if(!file.exists(chipath)) {
+     download.file(url = chiurl, destfile = chipath)
+     print("chicago data downloaded and ready to go")
+} else {
+     print("chicago data present and ready to go")
+}
+
+chicago <- readRDS(chipath)
+```
+
+I found the chicago data on [github](https://github.com/DataScienceSpecialization/courses/blob/master/03_GettingData/dplyr/chicago.rds) and will store it in this week's data directory. I'll follow along in R (while still taking notes here) with this dataset.
+
+Welp, turns out that some of these `dplyr` functions are broken. Not sure if it's due to docker or the R notebook, but shit's busted.
+
+### `select`
+`select` returns a subset of the columns. You can refer to columns by name, and without "". You can also use `:` to span all columns between the 2 referenced, e.g. `head(select(chicago, city:dptp))`. You can exclude a list of columns with `head(select(chicago, -(city:dptp)))`.
+
+```{r}
+head(select(chicago, city:dptp))
+head(select(chicago, -(city:dptp)))
+```
+
+### `filter`
+`filter` subsets rows of data. You can filter rows to match logical conditions, and also apply filters on multiple columns.
+
+```{r}
+chic.f <- filter(chicago, pm25tmean2 > 30)
+chic.f <- filter(chicago, pm25tmean2 > 30 & tmpd > 80)
+head(chic.f)
+```
+
+### `arrange`
+The `arrange` function is an easy method of reordering the rows of a dataset. It's as simple as `arrange(chicago, date)`. To order descending, just wrap the column name in `desc()`.
+
+```{r}
+head(arrange(chicago, date))
+head(arrange(chicago, desc(date)))
+```
+
+### `rename`
+This function is structured like `rename(dataset, newName = oldName, newNameCol2 = oldNameCol2)`
+```{r}
+chicago <- rename(chicago, pm25 = pm25tmean2, dewpoint = dptp, pm10 = pm10tmean2,
+                  o3 = o3tmean2, no2 = no2tmean2, temp = tmpd)
+head(chicago)
+```
+
+### `mutate`
+`mutate` is meant to transform variables or create new ones. Let's say we want to create a `pm25` variable that centers the values by subtracting off the mean of `pm25`. We can do that with `chicago <- mutate(chicago, pm25detrend = pm25 - mean(pm25, na.rm=TRUE))`. Note that this results in 2 variables, `pm25` and `pm25detrend`.
+
+```{r}
+chicago <- mutate(chicago, pm25detrend = pm25 - mean(pm25, na.rm=TRUE))
+head(chicago)
+```
+
+### `group_by`
+We'll start by creating a new variable that categorizes the temperature as hot or cold based on an 80 degree threshold. We'll do this with the `mutate` function: `chicago <- mutate(chicago, tempcat = factor(1*(temp > 80), labels = c("cold", "hot")))`.
+
+Now we can group by that `tempcat` variable, then summarize by calling different aggregation functions on the variables.
+
+```{r}
+chicago <- mutate(chicago, tempcat = factor(1*(temp > 80), labels = c("cold", "hot")))
+hotcold <- group_by(chicago, tempcat)
+summarize(hotcold, pm25 = mean(pm25), o3 = max(o3), no2 = median(no2))
+```
+
+Another example: this time we'll make a year variable and summarize by year.
+
+```{r}
+chicago <- mutate(chicago, year = as.POSIXlt(date)$year + 1900)
+years <- group_by(chicago, year)
+summarize(years, pm25 = mean(pm25, na.rm = TRUE), o3 = max(o3), no2 = median(no2))
+```
+
+### the pipeline operator
+`%>%` is a special operator in `dplyr` that lets you chain operations together; it lets you pipe the output of some process into the input of other functions. So you could:
+
+```{r}
+chicago %>% mutate(month = as.POSIXlt(date)$mon + 1) %>% group_by(month) %>%
+     summarize(pm25 = mean(pm25, na.rm=TRUE), o3=max(o3), no2=median(no2))
+```
+
+Note that you don't have to specify the dataset argument in every step, it follows from the first function.
+
+## Merging data
+First we downlaod the peer review data that we'll examine in this section:
+
+```{r}
+reviewsurl <- "https://dl.dropboxusercontent.com/u/7710864/data/reviews-apr29.csv"
+solutionsurl <- "https://dl.dropboxusercontent.com/u/7710864/data/solutions-apr29.csv"
+revpath <- paste0(datapath, "/reviews.csv")
+solpath <- paste0(datapath, "/solutions.csv")
+
+if(!file.exists(revpath)) {
+     download.file(url = reviewsurl, destfile = revpath)
+     print("reviews data downloaded and ready to go")
+} else {
+     print("reviews data present and ready to go")
+}
+
+if(!file.exists(solpath)) {
+     download.file(url = solutionsurl, destfile = solpath)
+     print("solutions data downloaded and ready to go")
+} else {
+     print("solutions data present and ready to go")
+}
+
+reviews <- read.csv(revpath)
+solutions <- read.csv(solpath)
+head(reviews)
+head(solutions)
+
+```
+
+You can merge datasets with the `merge`function. These 2 datasets are linked by `solution_id` in the reviews data, and an `id` column in the solutions data.
+
+By default, `merge` tries to join on all columns whose name is common to both datasets. You can use the `by.x` and `by.y` arguments to specify which columns in each dataset should be used for the join.
+
+So here we have the names of the 2 datasets:
+
+```{r}
+names(reviews)
+names(solutions)
+```
+
+To specify the id columns that we want to join on, we can call:
+
+```{r}
+mergedData = merge(reviews, solutions, by.x="solution_id", by.y="id", all=TRUE)
+head(mergedData)
+```
+
+This will join the 2 named columns, despite not sharing a name, and the `all=TRUE` argument tells R to perform a full outer join.

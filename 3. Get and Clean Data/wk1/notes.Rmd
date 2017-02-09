@@ -1,0 +1,205 @@
+---
+title: "3. Get and Clean Data: Week 1 Notes"
+output: html_notebook
+---
+
+# Reading Data
+The goal of this course is to focus on getting data and, more importantly, getting it ready for analysis. This is the real work of data science.
+
+This course will focus on the first 3 steps of the data science process:
+
+1. Raw data
+2. Processing script
+3. Tidy data
+4. Data Analysis
+5. Data communication
+
+## Raw and Processed Data
+Raw data is the data as it was delivered from the original source. The first time you lay your hands on it, that's the raw data.
+
+Processed data is data which is ready for analysis. Processing can include merging, subsetting, transforming, etc. **EVERYTHING NEEDS TO BE RECORDED!!** (Literate programming and notebooks can help with this.)
+
+NOTE: it's important to note that the data existed before you put your hands on it, and it might be worthwhile to understand some of the processing that the data went through before you got it and it 'raw.'
+
+### Components of tidy data
+
+1. the raw dataset
+     - absolutely raw
+2. a tidy dataset
+     - each variable should be in 1 column
+     - each different observation should be in 1 row
+     - there should be 1 table for each "kind" of variable
+     - if you have multiple tables, include the necessary identification columns
+     - include a row at the top with variable names
+     - make variable names human readable
+     - only put 1 table in a file
+3. a code book describing everything about your tidy dataset
+     - information about the variables (units)
+     - information about summary choices
+     - information about the experimental study design you used
+     - commonly just a word/text file
+     - the point here is to simply explain your goals and process
+4. an exact recipe for how you got from raw to tidy
+     - there are several ways to do this, but scripts/notebooks are the way to go
+     - the input is the raw dataset
+     - the output is the tidy dataset
+     - if a step can't be scripted, then explicitly record every detail of the step so it can be repeated exactly
+     
+## Downloading files
+It's important to set a project working directory that will serve as the root of the entire project (git repo). You can automatically manage project directories by checking for their existence at the beginning of a script, then creating them if necessary.
+
+```{r, eval=FALSE}
+if (!file.exists("data")) {
+     dir.create("data")
+}
+```
+
+You can use the `download.file()` function to download a file, but shell scripting might make more sense here? Maybe? I dunno... Regardless, don't download by hand, make it all reproducible.
+
+```{r, eval=FALSE}
+fileUrl <- "copy link address URL goes here"
+download.file(fileUrl, destfile = "./path/to/dir", method = "curl")
+list.files("./path/to/dir")
+dataDownlaoded <- date()
+```
+
+In general, `curl` is a safe method, works for HTTPS URLs; also be sure to capture date/time.
+
+### Reading local flat files
+`read.table()` is the most common method of reading in flat files. Most of this has been covered in the R Programming class. You can also set `quote = ""` to help R deal with quotation marks in files.
+
+### Reading excel files
+Fuck excel, but they're goddamn everywhere...
+
+```{r, eval=FALSE}
+if(!file.exists("data")) {dir.create("data")}
+
+fileURL <- "excel file URL"
+download.file(fileURL, destfile = "./path/to/file.xlsx", method = "curl")
+dateDownloaded <- date()
+
+library(xlsx)
+cameraData <- read.xlsx("./path/to/file.xlsx", sheetIndex = 1, header = TRUE)
+# sheetIndex points to a specific sheet in the file
+
+# you can also set colIndex and rowIndex in order to read a subset of cells of the worksheet:
+cols <- 2:10
+rows <- 5:50
+
+cameraDataSubset <- read.xlsx("file.xlsx", sheetIndex = 1, colIndex = cols, rowIndex = rows)
+```
+
+If you're doing serious manipulation of Excel files, the `XLConnect` package may be more your speed.
+
+### Reading XML
+Extensible Markup Language. Used to store structured data. It's made up of the markup (labels that give structure) and content (the stuff inside the structure).
+
+* tags are general labels
+     - start tags: `<section>`
+     - end tags: `</section>`
+     - empty tags: `<line-break />`
+* elements are specific examples of tags
+     - `<greeting> Hello, world! </greeting>`
+* attributes are components of the labels
+     - `<img src="file.jpg" alt="flavor text"/>`
+     - `<step number="3"> connect A to B. </step>`
+     
+Here's an example using the `XML` package. I think that package is old. `XML2` seems to be a newer API for a C library, which is pretty fast. But I'm not gonna deal with reworking this example for `XML2`.
+
+```{r, eval=FALSE}
+library(XML)
+fileUrl <- "http://www.w3schools.com/xml/simple.xml"
+doc <- xmlTreeParse(fileUrl, useInternal = TRUE)
+rootNode <- xmlRoot(doc)
+xmlName(rootNode)
+```
+
+Meh, screw it, I'll deal with this when I need to access XML data.
+
+### Reading JSON
+JSON is similar to XML, but very different syntax. It's lightweight for data storage, and commonly used online and in API's. The data is stored as numbers, strings, booleans, arrays, or objects.
+
+The `jsonlite` library is a great JSON package for R. You can simply pass a URL to a reader function and you're off to the races, like this:
+
+```{r, eval=FALSE}
+library(jsonlite)
+jsonData <- fromJSON("https://URL.here.com")
+names(jsonData)
+```
+
+That will return all of the top level objects in the json file. You can then access one of those JSON objects just like you would a named list or data frame. `names(jsonData$owner)` would return all of the objects inside `owner`. You could even drill farther down with `names(jsonData$owner$login)`.
+
+You can also convert data frames to JSON with something like: `myjson <- toJSON(iris, pretty = TRUE)`. This will convert the iris dataset into a pretty JSON document.
+
+For kicks, you can take that new iris JSON doc and convert it back into a data frame with `irisNew <- fromJSON(myjson)`.
+
+### The `data.table` package
+Data tables are often faster and more memory efficient than data frames. It inherits from `data.frame` so any function that works there should work with `data.table`, but it's written in C so it's much faster. It requires a different syntax, so there is a bit of a learning curve.
+
+Let's start by creating a random data frame.
+
+```{r}
+library(data.table)
+df = data.frame(x=rnorm(9), y=rep(c("a", "b", "c"), each = 3), z = rnorm(9))
+df
+
+dt <- as.data.table(df)
+dt
+```
+
+`tables()` will show you all tables stored in memory. You can subset with `dt[2, ]` or (and this is the badass part) `dt[dt$y == "a", ]`.
+
+`r dt[dt$y=="a", ]`
+
+**NOTE:** This is the kind of subsetting that you wish everything else in R was capable of. I tried it with data frames, but couldn't get there. So go data tables! But this might be a little superfluous in light of the `dplyr` package. It's probably the best way to handle data manipulation. Still, data tables are probably smart due to their speed and space efficiency.
+
+If you subset with only 1 index, it assumes you're subsetting by rows. Columns are trickier. The argument you pass after the comma is an expression, and expressions are evaluated differently than the index that you're used to.
+
+You can pass a list of functions to the 2nd argument of your index, and those functions can be passed arguments of the data table (columns of the data table). That means you could call `dt[, list(mean(x), sum(z))]` and you'd get back a vector with 2 elements: the mean of dt\$x, and the sum of DT$z. 
+
+```{r}
+dt[, list(mean(x), sum(z))]
+```
+
+You could also call `dt[, table(y)]` to return a table of the `y` column.
+
+```{r}
+dt[, table(y)]
+```
+
+This is also a useful way to add columns to data. In R, normally if you add a column R will duplicate the entire data frame to make that change. This method avoids that, so it's much more efficient. `dt[, w:=z^2]`. `r dt[, w:=z^2]`
+
+Because a copy hasn't been made, if you "clone" a data table (`dt2 <- dt`), then make a change to the first data table (`dt[, y:= 2]`), then that change automatically propagates over to `dt2`. If you truly want a copy, you must do so explicitly.
+
+Finally, you can use data tables and expressions to perform multi-step operations and create a new variable. For instance, `dt[, m:= {tmp <- (x+z); log2(tmp+5)}]` uses columns `x` and `z` to create a `tmp` variable that is used to create `m`. The `tmp` column is not in the resulting dataset.
+
+```{r}
+dt[, m:= {tmp <- (x + z); log2(tmp + 5)}]; dt
+```
+
+
+You can also perform `plyr` like operations. `dt[, a:=x>0]` adds a new column `a` with the boolean based on `x`. You can perform set operations as well with things like: `dt[, b:=mean(x+w), by = a]`. This will calculate a mean for `x + w` across the group where `a = TRUE`, and assign that value across that group. Same goes for `a = FALSE`.
+
+The `.N` variable is a special variable that let's you count the number of items in a group. So if you make a data table with random letters via `dt <- data.table(x=sample(letters[1:3], 1E5, TRUE))` you can then count the instances of each letter with `dt[, .N, by=x]`.
+
+```{r dtcount}
+dt <- data.table(x=sample(letters[1:3], 1E5, TRUE))
+dt[, .N, by=x]
+```
+
+Keys are a special attribute that can be assigned to data tables. If you create `dt <- data.table(x=rep(c("a", "b", "c"), each = 100), y=rnorm(300))` you can then `setkey(dt, x)`. This makes the `x` column the key of `dt` and you can very quickly subset `dt` by calling `dt['a']`. This returns rows where the key is `'a'`.
+
+You can also join on keys. Example:
+
+```{r dtjoin}
+dt1 <- data.table(x=c('a', 'a', 'b', 'dt1'), y=1:4)
+dt2 <- data.table(x=c('a', 'b', 'dt2'), z=5:7)
+setkey(dt1, x); setkey(dt2, x)
+merge(dt1, dt2)
+```
+
+Not sure exactly how this works generally, but it's apparently really fast if your key is the same for both tables.
+
+You can also read things from disk very quickly with data tables. `fread()` can read data tables stupid fast compared to `read.table()`.
+
+So the gameplan should be to use data tables with data frame and dplyr methodologies. Kewl.
