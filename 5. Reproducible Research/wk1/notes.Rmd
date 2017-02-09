@@ -119,3 +119,57 @@ for(i in 1:55) {
 
 names(trainSpam)[which.min(cvError)]
 ```
+
+Turns out `charDollar` (the number of `$` characters in an email) has the lowest cross-validated error, so we'll use the model built on that variable.
+
+```{r predictions, warning=FALSE}
+## refit that model
+predictionModel = glm(numType ~ charDollar, family = "binomial", data = trainSpam)
+
+## get predictions on the test set
+predictionTest = predict(predictionModel, testSpam)
+predictedSpam = rep("nonspam", dim(testSpam)[1])
+
+## classify as spam for those with probability > 0.5
+predictedSpam[predictionModel$fitted > 0.5] = "spam"
+
+## build a classification table
+table(predictedSpam, testSpam$type)
+```
+
+### 8. Interpret results
+It's important to use the right language when interpreting your results; don't claim more than you've discovered. If you can give a bit of an explanation as to why you got these results, give it. Try to interpret coefficients and your measures of uncertainty.
+
+For this example, explain that the fraction of characters that are `$` can be used to predict spam emails (also note cases where this wouldn't work, such as maybe in the finance sector). Explain the overall model: here, more `$` always means more likely spam, but that could be different. Give the test set error rate of 22.4%.
+
+### 9. Challenge results
+Now it's important to challenge those results (which I touched on up there). You've got to think through every step of the analysis: the question, the data source, the processing, the analysis, and the conclusions. Challenge the measure of uncertainty, and think of any potential alternative analytical methods.
+
+### 10. Synthesize/write up results
+Now you write it all up. Lead with the question, summarize the analysis into the story. But you don't have to include absolutely every analysis into the final product. Only include points that are a) needed for the story and b) needed to address a challenge. That being said, keeping some notes on *every* analysis can be helpful if you'll be responding to questions.
+
+Also, you should order the analysis according to the story, rather than adhering to chronology. Include "pretty" figures that contribute to the story.
+
+For this example, the question was "can I predict spam based on quantitative characteristics of the emails?" The approach was to collect the data from UCI, then make training/test sets. We explored some relationships, chose a logistic model based on cross validation error in the training set, then applied it to the test set for 78% accuracy. The conclusion was that dollar sign characters indicate spam, which makes sense, e.g. "Make money with viagra$$$$"
+
+However, 78% isn't great, we could use more variables to build a more complex model (and hopefully more predictive). And we could base a model on something other than logistic regression.
+
+### 11. Create reproducible code
+Then you need to make reproducible code with R markdown and knitr.
+
+## Organizing your analysis
+What are the main types of file that you'll have at the end of an analysis?
+
+1. data
+     - raw data: back it up, host it yourself, maybe store in git (if small enough), and record access info in README
+     - processed data: name it according to the processing script, should be tidy
+2. figures
+     - exploratory stuff: name according to scripts, these aren't vital, but worth keeping up with
+     - polished stuff: very important, make reproducible, maybe backup
+3. R code
+     - raw/unused scripts: not the final product, but still keep track of them! name them well, comment them well
+     - final scripts: for the final paper/report/product, extremely well commented
+     - R markdown files: this is probably the best way to keep everything together
+4. text
+     - README files: I'll use these mainly for git, R markdown takes over this role
+     - polished/formal report: I'm not quite doing this yet
