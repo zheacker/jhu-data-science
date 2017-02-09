@@ -1,0 +1,140 @@
+---
+title: "7. Regression - Week 4 Notes"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 5, fig.align = "center")
+```
+
+# Logistic and Poisson regression
+Now we're going to talk a bit about generalized linear models (GLMs). Linear models are quite useful in some scenarios, but they certainly have their limitations. Additive response models don't make that much sense if the response is discrete, or strictly positive (why?). Some transformations, such as taking a cube root, are difficult to interpret, and other interpretable transformations, like natural logs, aren't applicable to zero or negative values.
+
+GLMs expand the notions of linear models to deal with some of these cases, although they necessarily grow in complexity as a result. A GLM involves 3 components:
+
+* an exponential family model for the response - this is the distribution (normal is a part of the exponential family), the random component
+* a systematic component via a linear predictor - this is the set of regression coefficients
+* a link function that connects the means of the response to the linear predictor - this connects the random and systematic components
+
+The 3 most famous cases of GLMs are: linear models, binomial and binary regression, and Poisson regression. We've already looked at linear models, so now we'll tackle the remaining two.
+
+## Linear model as GLM
+Let's review the linear model as our first example of GLMs. We assume that $Y_i /sim N(\mu_i, \sigma^2)$ (the Gaussian distribution is an exponential family distribution). That's the random piece.
+
+We define the linear predictor to be $\eta_i = \sum_{k=1}^p X_{ik}\beta_{k}$.
+
+The GLM link function is defined as $g(\mu) = \eta$, and for linear models we use the identity function $g(\mu) = \mu$ so that $\mu_i = \eta_i$.
+
+There's an important distinction in what we've done above and how we previously treated linear models. Previously, we said that $Y$ was a function of our linear predictor and we added some random error terms. This is equivalent to saying that if we could simply measure everything about a system, then our model could perfectly predict the outcome, that is the errors would be nonexistent.
+
+Now, we say that $Y$ is normally distributed, instead of being perfectly linear. We define $\eta$ as the linear *component* of our model, and then we tie the randomness of $Y$ to the linearity of $\eta$ with a link function. This is a different kind of compartmentalization of the model.
+
+### Logistic regression
+Now let's think about coin flips. Modeling these as normal doesn't make much sense. Instead, let's assume that $Y_i /sim Bernoulli(\mu_i)$ so that $E[Y_i] = \mu_i$ where $0 \le \mu_i \le 1$.
+
+Our linear predictor is still $\eta_i = \sum_{k=1}^p X_{ik}\beta_k$, same as always.
+
+But our link function is now different. It's the natural log of the odds, referred to as the logit and it's $g(\mu) = \eta = \log \left( \frac {\mu} {1 - \mu} \right)$.
+
+So we can write out the binomial likelihood like this (although I have no idea what this means yet)
+
+$$\prod_{i=1}^n \mu_i^{y_i} (1 - \mu_i)^{1- y_i} = \exp \left(\sum_{i=1}^n y_i \eta_i \right) \prod_{i=1}^n (1 + \eta_i)^{-1}$$
+
+and so that is the function that we want to optimize (maximize the likelihood) over to obtain our parameter estimates.
+
+### Poisson regression
+We can also use this GLM technique for Poisson random variables. Assume that $Y_i /sim Poisson(\mu_i)$ so that $E[Y_i] = \mu_i$ where $0 \le \mu_i$.
+
+The linear predictor is just $\eta_i = \sum_{k=1}^p X_{ik}\beta_k$, as always.
+
+The link function is just the log $g(\mu) = \eta = \log(\mu)$. And then we can maximize the likelihood.
+
+## GLM notes
+In each case, the only way in which the likelihood depends on the data is through
+
+$$\sum_{i=1}^n y_i \eta_i = \sum_{i=1}^n y_i \sum_{k=1}^p X_{ik} \beta_k = \sum_{k=1}^p \beta_k \sum_{i=1}^n X_{ik} y_i$$
+
+This is the point of the GLM method, to abstract the model into these generalized components that we can work with in a standard way. The prime example is the equation for the maximum likelihood, which is
+
+$$0 = \sum_{i=1}^n \frac {Y_i - \mu_i} {Var(Y_i)} W_i$$
+
+This equation looks a lot like a least squares sort of equation, only there's a set of weights and a variance in the denominator that doesn't go away.
+
+Regarding variances, remember that when we previously treated linear models, we assumed $Var(Y_i) = \sigma^2$, a constant. The assumptions about variance change for Bernoulli and Poisson models.
+
+For Bernoulli, $Var(Y_i) = \mu_i (1 - \mu_i)$.
+
+For Poisson, $Var(Y_i) = \mu_i$.
+
+You can check your own data to see if it meets these assumptions, but if it doesn't, there are "quasi" distribution functions that can be used to relax the assumptions of the variance model.
+
+## Logistic regression
+Now let's dig into the meat of the 2 most important cases in GLMs, the first being logistic regression. Here we're talking about Bernoulli variables, 0s and 1s, binary outcomes. This could be alive/dead, win/loss, success/failure, whatever. The special case of *binary logistic regression* relates to situations where our covariant is constant, that is the probability of success is constant. In generalized logistic regression, we consider the case when the probability of success is some function of covariants (not constant).
+
+We're going to use the following data for our example. It's some data regarding Ravens points and wins.
+
+```{r download, eval=TRUE, echo=FALSE}
+## setup URL and path variables for this data
+ravensurl <- "https://dl.dropboxusercontent.com/u/7710864/data/ravensData.rda"
+datapath <- "./data"
+ravenspath <- paste0(datapath, "/ravensData.rda")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!file.exists(ravenspath)) {
+  download.file(ravensurl, destfile = ravenspath)
+  print("Downloaded & extracted ravens data file")
+} else {
+  print("Found ravens data, ready to go")
+}
+
+load(ravenspath)
+```
+
+We probably don't want to fit a linear model to this data; it doesn't really make sense as the outcome isn't continuous, it's binary. A linear model might look like this
+
+$$RW_i = b_0 + b_1 RS_i + e_i$$
+
+* $RW_i$ is 1 or 0, win or loss
+* $RS_i$ is number of points for Ravens
+* $b_0$ probability of Ravens win if they score 0 points
+* $b_1$ increase in probability of a win for each Ravens point
+* $e_i$ residual variation
+
+It's probably much better to model the odds. Remember that the odds are defined as $\frac{p}{1 - p}$. (Conversely, the probability $p = \frac{odds}{1 - odds}$.) These are the definitions of the quantities we're working with:
+
+Binary Outcome 0/1
+
+$$RW_i$$
+
+Probability (0, 1)
+
+$$ Pr(RW_i | RS_i, b_0, b_1)$$
+
+Odds $(0, \inf)$
+
+$$\frac {Pr(RW_i | RS_i, b_0, b_1)} {1 - Pr(RW_i | RS_i, b_0, b_1)}$$
+
+Log odds $(-\inf, \inf)$
+
+$$\log \left( \frac {Pr(RW_i | RS_i, b_0, b_1)} {1 - Pr(RW_i | RS_i, b_0, b_1)} \right)$$
+
+So here's a little bit of the mathematical brachiation that takes us from linear regression to logistic regression. Under linear regression, our model would be $RW_i = b_0 + b_1 RS_i + e_i$, which is the same thing as calling $RW_i$ the expected value of $RW_i$, making $E[RW_i | RS_i, b_0, b_1] = b_0 + b_1 RS_i$.
+
+Now, for a Bernoulli variable, the expected value is just the probability of the outcome, so we could model the probability of that outcome with something like
+
+$$Pr(RW_i | RS_i, b_0, b_1) = \frac {\exp(b_0 + b_1 RS_i)} {1 + \exp(b_0 + b_1 RS_i)}$$
+
+so the probability is equal to $e$ to the linear regression over $1 + e$ to the linear regression. Manipulating that term on the right yields
+
+$$\log \left( \frac {Pr(RW_i | RS_i, b_0, b_1)} {1 - Pr(RW_i | RS_i, b_0, b_1)} \right) = b_0 + b_1 RS_i$$
+
+So the *log of the odds* is the linear regression relationship. That *log of the odds* term is known as the logit, and you can flip between the odds and the probability with the logit and its counterpart, the expit $\frac {e^a} {1 + e^a}$, where $a = b_0 + b_1 RS_i$.
