@@ -7,6 +7,7 @@ toInstall <- c(
      "formatR",
      "GGally",
      "kernlab",
+     "kernSmooth",
      "UsingR",
      "wesanderson",
      "xlsx"
