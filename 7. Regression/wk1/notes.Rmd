@@ -1,0 +1,302 @@
+---
+title: "7. Regression - Week 1 Notes"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 5, fig.align = "center")
+```
+
+# Housekeeping
+
+* K, they want me to clone a git repo, fuck that noise, I'm going rogue (as usual).
+* Book [here](https://leanpub.com/regmods). Advanced book [here](https://leanpub.com/lm).
+* 3 main topics in this course:
+     - least squares and linear regression
+     - multivariate regression
+     - generalized linear models
+
+# Intro to regression
+Linear regression, and generalized linear models, should be one of your go-to tools for data analysis. Francis Galton **invented** the notions of regression and correlation back in the 19th century--this fuckin guy--when he was analyzing parents and childrens heights. His work has proven to be as accurate as current genomic methods.
+
+Simply Statistics ran a blog post about Kobe's ball-hogging. They found that the higher the % of shots taken by Kobe, the lower the score differential for that game. So if Kobe stops ball-hogging, the Lakers win more (and by more). The key sentence: "Linear regression suggests that an increase of 1% in % of shots taken by Kobe results in a drop of 1.16 points (+/- 0.22) in score differential." Regression is really about **that** sentence. So how do you make that sentence?
+
+Consider the following kinds of goals/questions:
+
+- use the parents' heights to predict childrens' heights
+- find a parsimonious, easily described mean relationship between parent and child heights
+- investigate the variation in childrens' heights that appears *unrelated* to parents' heights (residual variation)
+- quantify what impact genotype information (beyond parental height) has in explaining child height
+- figure out how/whether (and under what assumptions) to generalize findings beyond the data in question
+- why do children of tall parents tend to be tall, but shorter than their parents? Why do children of short parents tend to be short, but taller than their parents? (regression to the mean)
+
+## Basic least squares
+Let's start with Galton's original data from 1885. This data comes from the `UsingR` package, so let's make sure we have that.
+
+```{r installpkgs, echo=FALSE, eval=FALSE}
+loadlist <- c("UsingR", "gridExtra")
+suppressMessages(sapply(loadlist, library, character.only = TRUE))
+```
+
+Boss.
+
+First we'll look at the marginal distributions, i.e. parents disregarding children, and children disregarding parents.
+
+- the parent distribution is all heterosexual couples
+- correction for gender via multiplying female heights by 1.08
+- overplotting is an issue from discretization
+
+```{r pcplot}
+library(UsingR); library(ggplot2); data(galton); library(reshape2)
+long <- melt(galton)
+g <- ggplot(long, aes(value, fill = variable)) +
+     geom_histogram(color = "black", binwidth = 1) +
+     facet_grid(. ~ variable)
+g
+```
+
+Again, these are the marginal distributions; a scatterplot would show us the interaction between the data, but for now we're just going to use these distributions to introduce least squares, then we'll get into the bivariate association later.
+
+Forget the parent data for a minute, let's just consider the childrens' information. Without any other features, we might guess that we could "predict" a kid's height just based on that distribution. Most kids fall in the middle, so we can find the middle and "predict" that value for every kid. But what's the middle? We can find it via least squares:
+
+$$\sum_{i=1}^{n} (Y_i - \mu)^2$$
+
+So $Y_i$ is the height of kid $i$ out of $n$ kids. If you find the $\mu$ that minimizes that sum, you've found the middle. This is actually a physics problem as well; given a distribution of weight across 1 dimension, $\mu$ is the center of mass of that distribution. And, intuitively, $\mu = \bar{Y}$.
+
+The lecture goes on to demonstrate the change in the mean squared error resulting from changing $\mu$. They use the `manipulate` function to do this, but that doesn't work with the `knitr` ecosystem, so I'm not going to worry about it. Eventually, though, I will need to investigate shiny-driven interactive documents. Rstudio seems to have a mechanism for this, but I don't know how well it'll integrate with `knitr`. But that's for later.
+
+## Throw in the parent data
+Now let's add in the parents' data. The obvious way to do this is with a scatterplot.
+
+```{r galtonscatter}
+g <- ggplot(galton, aes(parent, child)) +
+     geom_point()
+g
+```
+
+This plot has a few failings. The main one, though it's difficult to detect, is that the data is over-plotted; there are multiple observations occupying the same coordinates, and that's masked by the discrete nature of the measurements. While I'm not sure how to systematically detect this kind of failing, I know that we can resolve it with a size-by mapping.
+
+**NOTE**: Actually, you can detect overplotting by adding the `position_jitter` and/or `position_dodge` to the position argument of the geom of interest. You can basically use jitter/dodge as a quick test to see if there's more data hiding beneath what you can see.
+
+```{r jitt}
+g <- ggplot(galton, aes(parent, child)) +
+     geom_point(position = position_jitter())
+g
+```
+
+OK, now back to our size-by method. The `geom_count()` function was added to ggplot2 v2.0 for exactly this use case.
+
+```{r withsize}
+g <- ggplot(galton, aes(parent, child)) +
+     geom_count(aes(color = ..n..))
+g
+```
+
+This plot is better cause it just is. It's still kinda shitty, but better. Man, that was about 4 hours of work to get a slightly less-shitty graph. Oh well.
+
+## Regression through the origin
+Let's use the parents' heights to predict the childrens' height. Let $X_i$ be the parents' heights; let $\beta$ be the slope of a line, and let's make the (knowingly false) assumption that the line goes through the origin. So we want to minimize
+
+$$\sum_{i=1}^{n}(Y_i - X_i \beta)^2$$
+
+The subtraction is equivalent to finding the distance between the $Y_i$'s, our actual data points, and the $X_i \beta$'s, the points that lie on our fitted line. That distance is the error of our line, which is what we want to minimize.
+
+Now of course, in practice, you shouldn't force the regression line to go through the origin. Instead, you can subtract the means of each of our distributions from the relevent data--subtract the mean parents' height $\bar{Y}$ from each parent height $Y_i$. This transformation pseudo-normalizes the data and centers it around the origin, so it's more acceptable to make the assumption that the regression line lies on that point.
+
+Now the lecture goes through another `manipulate` example, but I'm not doing that. Here are some graphs instead.
+
+```{r ocenter}
+d2 <- galton
+d2$child <- d2$child - colMeans(galton)[1]
+d2$parent <- d2$parent - colMeans(galton)[2]
+g0 <- ggplot(d2, aes(parent, child)) +
+     geom_count(aes(color = ..n..))
+g0
+```
+
+That is the same graph from above, but notice that it is now centered around the origin. Nifty. Since the data is now centered around 0, our (knowingly false) assumption that the regression runs through 0 will always go through the center of the data. But the slope, $\beta$, can be varied. As $\beta$ changes, the mean squared error will change as well. The optimization problem here is to find $\beta$ s.t. the $MSE$ is minimized. Let's look at 9 $\beta$s between 0.25 and 2.
+
+```{r beta1, fig.width=12, fig.height=12}
+betas <- round(seq(0.25, 2, length.out = 9), 2)
+
+betameans <- sapply(betas,
+                function(x, data) { round(c(x, mean((data[, 1] - data[, 2]*x)^2)), 2) },
+                data = d2)
+
+titles <- apply(betameans,
+                2,
+                function(x) {paste("beta = ", x[1], "; mse = ", x[2], sep = "")})
+
+comp <- lapply(1:length(betas), function(x, bm, tt) { list(bm[1, x], tt[x]) },
+               bm = betameans, tt = titles)
+
+out <- lapply(comp, function(x, plot, comp) {
+     ggplotGrob(plot + geom_abline(intercept = 0, slope = x[[1]][1]) + ggtitle(x[[2]]))
+}, plot = g0, comp = comp)
+
+# test <- lapply(out, function(x) x[[1]]);test
+
+grid.arrange(nrow = 3, ncol = 3,
+             out[[1]],
+             out[[2]],
+             out[[3]],
+             out[[4]],
+             out[[5]],
+             out[[6]],
+             out[[7]],
+             out[[8]],
+             out[[9]]
+             )
+```
+
+Wow that took for fucking ever. A whole night just to do those 9 plots, AND I didn't even figure out how to vectorize the `grid.arrange` function. But dayum son, look at those anonymous functions. Mutli-inputs, vectorized outputs. Damn I'm good.
+
+So what do we have after all that? Well, we fit 9 different regression lines, and we have the mean squared errors for each fit. The 3rd $\beta$, 0.69, seems to be the minimum $mse$.
+
+Mkay, enough screwing around. Let's use `lm` like an adult.
+
+```{r lm}
+lm(data = galton, I(child - mean(child)) ~ I(parent - mean(parent)) - 1)
+```
+
+The `-1` term at the end is what forces the regression to go through the origin, although I don't have a mechanical understanding of that yet. It might be an `offset`, but I don't know how the model function treats offsets or how they're manipulated. Maybe we'll cover it later. But what we can see is the 1 coefficient that gets returned, `r lm(data = galton, I(child - mean(child)) ~ I(parent - mean(parent)) - 1)$coefficient`. That's the slope of the line through the origin that minimizes $mse$. Finally, here's the plot of the original data with that line. (Plus I also did it with the `geom_smooth(method = "lm")` syntax.)
+
+```{r finally}
+fit <- lm(data = galton, child ~ parent); fit
+g + geom_abline(intercept = fit$coefficients[1], slope = fit$coefficients[2])
+g + geom_smooth(method = "lm", se = FALSE, color = "black")
+```
+
+# Ordinary Least Squares
+Linear, or ordinary, least squares is one of the primary workhorses of statistics. It's linear regression. Let's just try to move through this kinda quickly, eh?
+
+## Notation & Background
+
+* We write $X_1, X_2, ..., X_n$ to describe $n$ data points
+* We might use $Y_n$ instead of $X$
+* We typically use greek letters like $\mu$ for things we don't know and want to estimate
+
+### The empirical mean
+The empirical mean is the mean of the data points we're looking at. If $X$'s are out data points, then $\bar{X}$ is the empirical mean of those data points.
+
+$$\bar{X} = \frac{1}{n} \sum_{i=1}^n X_i$$
+
+Notice that if we subtract off $\bar{X}$ from our data, we get new data that has mean 0. That is, if we define
+
+$$\tilde{X_i} = X_i - \bar{X}$$
+
+then the mean of $\tilde{X_i}$ is 0. This is called centering the random variables.
+
+Also remember that the mean is in fact the least squares solution for minimizing
+
+$$\sum_{i=1}^n (X_i - \mu)^2$$
+
+That is, the mean is the value that minimizes the mean squared error of a 1-dimensional dataset.
+
+### The empirical variance
+The empirical variance is the variance of the data points we're looking at.
+
+$$S^2 = \frac{1}{n - 1} \sum_{i=1}^n (X_i - \bar{X})^2 = \frac{1}{n - 1} \left(\sum_{i=1}^n X_i^2 - n\bar{X}^2\right)$$
+
+The empirical standard deviation is $S = \sqrt{S^2}$. Notice that the standard deviation has the same units as the data.
+
+That data defined by $X_i / s$ have empirical standard deviation 1. This is called scaling the data.
+
+### Normalization
+So let's take our dataset $X_i$ and subtract off the mean $\bar{X}$, then divide by the standard deviation $s$. This results in a new dataset that is both centered and scaled; let's call the new dataset $Z_i$.
+
+$$Z_i = \frac{X_i - \bar{X}}{s}$$
+
+This is called normalizing the data.
+
+### The empirical covariance
+Now we have 2 vectors, $X_i$ & $Y_i$. The empirical covariance is
+
+$$Cov(X, Y) = \frac{1}{n - 1} \sum_{i=1}^n (X_i - \bar{X})(Y_i - \bar{Y}) = \frac{1}{n - 1} \left(\sum_{i=1}^n X_iY_i - n\bar{X}\bar{Y}\right)$$
+
+The covariance summation term is basically the $X$ deviations around their mean times the $Y$ deviations around their mean.
+
+The correlation is defined as
+
+$$Cor(X, Y) = \frac{Cov(X,Y)}{S_xS_y}$$
+
+Where $S_x$ and $S_y$ are the estimates(?) for standard deviations for $X$ and $Y$. This is sort of like the scaling operation that we mentioned earlier. The covariance has unit of $Unit_x \times Unit_y$, and when we scale it this way, we get the correlation, which is unitless.
+
+#### Some facts about correlation
+
+* $Cor(X,Y) = Cor(Y,X)$
+* $-1 \le Cor(X,Y) \le 1$
+* $Cor(X,Y) = 1$ and $Cor(X,Y) = -1$ only when the $X$ or $Y$ observations fall perfectly on a line (with positive and negative slope, respectively)
+* $Cor(X,Y)$ measures the strength of the linear relationship between $X$ and $Y$
+* $Cor(X,Y) = 0$ means there is no linear relationship
+* Correlations near 1 or -1 indicate a strong linear relationship
+
+# Least squares estimation of linear regression
+Let's go back to the Galton height data. Here 'tis.
+
+```{r galtonagain}
+g
+```
+
+We're going to use the parents' height to explain the childrens' height now. (Off the cuff, I'm not entirely sure how this is significantly different from what we did earlier, aside from ignoring the intercept term.)
+
+Let $Y_i$ be the $i^{th}$ child's height and $X_i$ be the $i^{th}$ parent's height (really the average of the pair of parents). There's some line $Y_i = \beta_0 + X_i \beta_1$ that best fits the data. We can define "best fit" by the least squares definition, so to find that line we would minimize
+
+$$\sum_{i=1}^n {Y_i - (\beta_0 + \beta_1X_i)}^2$$
+
+Now we jump right into results and implications. The least squares linear model seeks the line $Y = \beta_0 + \beta_1X$ that minimizes the sum of the squared errors of each data point $(X_i, Y_i)$. The result is the line $Y=\hat{\beta_0} + \hat{\beta_1}X$; the hats over the $\beta$s indicate that they're estimates of the parameters $\beta_0$ and $\beta_1$.
+
+Here's the punchline: those parameter estimates are
+
+$$\hat{\beta_1} = Cor(Y,X)\frac{Sd(Y)}{Sd(X)}$$
+
+$$\hat{\beta_0} = \bar{Y} - \hat{\beta_1}\bar{X}$$
+
+Some implications:
+
+* $\hat{\beta_1}$ has units of $Y/X$ (that's the slope)
+* $\hat{\beta_0}$ has units of $Y$ (that's the intercept)
+* the line passes through the point $(\bar{X},\bar{Y})$ (this should be obvious from the definition of $\hat{\beta_0})$ above)
+* the slope of the regression line with $X$ as the outcome and $Y$ as the predictor is $Cor(Y,X)Sd(X)/Sd(Y)$ (this is equivalent to flipping the coordinate plane around the $45^{\circ}$ line, so the slope will obviously be different)
+* the slope is the same as if you centered the data ($(X_i - \bar{X})$ and $(Y_i - \bar{Y})$) and performed regression through the origin
+* if you completely normalized the data ($\left\{ \frac{X_i-\bar{X}} {Sd(X)}, \frac{Y_i-\bar{Y}} {Sd(Y)} \right\}$), then the slope would be $Cor(Y,X)$ (remember that for normalized data the standard deviation of $X$ and $Y$ would be 1)
+
+## Regression code examples
+He then goes on to demonstrate manual regression in code. Nifty, but I don't have to care because I'm just going to use the `lm` function anyway. He did mention, though, that adding -1 to your model formulation (`lm(y ~ x - 1)`) eliminates the intercept, effectively forcing regression through the origin. I don't know why, but whatevs. Also, the `coef` function grabs just the coefficients of a model (the $\beta_0$ and $\beta_1$ parameters; so the function call is `coef(lm(y ~ x - 1))`). Finally, he explained that adding `geom_smooth(method="lm", formula=y~x)` to a ggplot graphic would plot the best fit line (but I already knew that cause I'm smurt).
+
+```{r dejavu}
+g + geom_smooth(method = "lm")
+```
+
+# Regression to the mean
+Galton noticed that extremes had a tendency to creep toward the mean over time. Tall families stay tall, but get shorter over time. Short families stay short, but get slightly taller over time. Star athletes this year do a little worse in the following year. How can we explain this? Easy, it's just probability.
+
+If dad is 10 feet tall, he's at the really far edge of the bell curve for men's heights. Like the way far end. He's the last person on the bell curve. 10 feet is fucking insanity. So when little Junior is born, mkay, sure, he's got some freaky tall genes in him, but what is the probability that he's taller than dad? Basically 0 because dad is some sort of medical anomaly who should be carted off to a military lab and used to develop a fucking super soldier serum. What is the probability that Junior will be shorter than dad? 100%. So regression to the mean just requires an understanding of the bell curve. If you're already on one end of it, the probability that another data point will be closer to the mean is higher than the probability that it'll be farther away.
+
+The sports-talk corollary: if any athlete is having a stellar year, or a terrible year, just some extreme year (or game, or any data point), then you can sound smart by predicting their performance next year, so long as you don't offer up any specific reasons. Probability's got your back.
+
+Let's demonstrate this with pictures. Say we normalize $X$, the child's height, and $Y$, the parents' height, so that they both have mean 0 and variance 1. Our regression line will pass through (0, 0), the mean of $X$ and $Y$. And since the standard deviations of $X$ and $Y$ are both 1, then the slope of the regression line is $Cor(Y, X)$, regardless of which variable is dependent or independent. (Note about the plot: if $X$ is the outcome and you plot $X$ as the horizontal axis, then the slope of the least squares line that you plot is $1/Cor(Y,X)$.)
+
+```{r fs}
+data("father.son")
+x <- (father.son$fheight - mean(father.son$fheight)) / sd(father.son$fheight)
+y <- (father.son$sheight - mean(father.son$sheight)) / sd(father.son$sheight)
+rho <- cor(x, y)
+
+g <- ggplot(data.frame(x = x, y = y), aes(x, y)) +
+     geom_point(color = "black", size = 6, alpha = 0.2) +
+     xlim(-4, 4) + ylim(-4, 4) +
+     geom_abline(intercept = 0, slope = 1) +
+     geom_vline(xintercept = 0) +
+     geom_hline(yintercept = 0) +
+     geom_abline(intercept = 0, slope = rho, color = "lightblue", size = 2)
+g
+```
+
+The light blue line is the regression line for `son's height ~ father's height`; the salmon line is for `father's height ~ son's height`. Remember, this data has been normalized.
+
+Because the data is normalized, the regression line's slope is exactly the $45^{\circ}$ line. Were the data not normalized, that slope would be in the units of $Y/X$, but now it's in terms of standard deviations of $Y$ and $X$. Now if the data were perfectly correlated, the data points would lie exactly on that $45^{\circ}$ line; remember that perfect correlation means that $Y$ moves exactly linearly in proportion to differences in $X$.
+
+This data is clearly not perfectly correlated, and no real data ever will be, so our regression line is not that $45^{\circ}$ line; our regression line is that light blue one. Also consider the scenario where the father's height has no bearing whatsoever on the son's height. In that case, the slope of our regression line would be exactly on the x-axis, meaning you could not make any prediction about the sons' heights from their fathers' heights.
+
+But the truth is somewhere in the middle; there's some signal, and some noise, so the slope (which measures the strength of the linear relationship between $X$ and $Y$) is out blue line. Consider a father with height 2 sd from the mean (of fathers' heights). If sons' heights were perfectly correlated ($45^{\circ}$ line), then we would say the son also had a height 2 sd from the mean (of sons' heights). Instead, our regression shows that the son likely has height around 1 sd from the mean. ***That*** is regression to the mean, that difference between 2 sd and 1 sd. (This is still a bit fuzzy, but we'll get there.)
