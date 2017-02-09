@@ -1,0 +1,121 @@
+---
+title: "5. Reproducible Research - Week 1 Notes"
+output: html_notebook
+---
+
+# Concepts, Ideas, Structure
+Reproducibility is important because it's basically the 'score' of data analysis. It's the blueprint to recreate your analysis, just like a symphony uses a score to reproduce a performance. It's not about a performance, it's not about executing the piece of music once. The goal is to develop a set of instructions that any musician can follow to reproduce this work.
+
+In data analysis, we don't really have a 'language' that we've landed on to communicate these instructions. We'll focus on R markdown here, which is a good method for analyses done in R.
+
+#### Replication
+In science, replication is incredibly important. If something is true, we should be able to replicate it. (Gravity works every time.) This is one reason why reproducible research is important. Replication is hard and expensive; it's the gold standard for scientific inquiry, but it's not always feasible. Reproducible research can help bridge the gap to replication.
+
+Reproducible research can help others understand and repeat your analysis, and they'll be able to more quickly get insights into what you did/how you did it/whether you fucked up.
+
+## So what do we need?
+What do we need to make reproducible research?
+
+- analytic data is available
+- analytic code is available
+- documentation of code and data
+- standard means of distribution
+
+## Enter Literate (Statistical) Programming
+The idea here is that an article/analysis is a stream of text and code. Analysis code is broken up into text and code "chunks". Each code chunk loads data and computes some results. Presentation code formats results and the article text just explains what's going on. Literate programs can be **weaved** to produce human readable documents and **tangled** to produce machine readable documents.
+
+One of the first tools for this in R was Sweave, which used LaTeX and R as its documentation and programming languages, respectively. It's kinda limited and not really active anymore.
+
+Now there's **knitr**! Knitr uses R for programming, but can use other documentation languages (LaTeX, markdown, HTML). Knitr is cool.
+
+## Steps in Data Analysis
+
+### 1. Define the question
+This is a critical step. Defining the question is the most important dimensionality reduction tool that you have. In general, the science will determine the kind of question that you ask. That will point you to some data. You will apply some statistical methods to that data to learn something, and then, if you're ambitious, you might develop some theoretical statistics to generalize your findings.
+
+So you might start with a general question: Can I automatically detect spam emails? This needs to be transformed into a more concrete question for data science: can I use characteristics of the emails themselves to classify them as spam/not spam?
+
+### 2. Define the ideal dataset
+Once you have a question, the dataset may depend on your goal:
+
+- descriptive: use the whole population
+- exploratory: use a random sample with many variables measured
+- inferential: use the *right* population, randomly sampled
+- predictive: use a training and test dataset from the same opulation
+- causal: use data from a randomized study
+- mechanistic: use data about the entirety of the system
+
+### 3. Define what data you can access
+Sometimes data is free on the web. Sometimes you have to buy data. Always respect the terms of use. If the data doesn't exist, you may need to generate the data yourself.
+
+In the spam example, you likely can't get access to gmail's server farms, and you'd be arrested if you tried, so you can find a free spam classifier dataset on the UCI Machine Learning Repository.
+
+### 4. Obtain the data
+When you obtain data, make sure to get the rawest form that you can get. Reference the source, including the URL, and the date/time you accessed the data. And maybe host your own copy?
+
+### 5. Clean the data
+The raw data now needs to be processed. You need to make sure you understand any processing that happened before you got your hands on the data, and then take it from there. The processing may include reformatting the data, sampling, tidying, etc. Then, and this is crucial, you need to make a determination as to the quality of the data and its ability to answer your question. If it's not good enough, then either quit or get new data.
+
+This data comes from the `kernlab` package, so let's load it up and get started.
+
+```{r spam}
+library(kernlab)
+data(spam)
+str(spam[, 1:15])
+
+## and then we can split it into test/train data
+set.seed(3435)
+trainIndicator = rbinom(4601, size = 1, prob = 0.5)
+table(trainIndicator)
+
+trainSpam = spam[trainIndicator == 1, ]
+testSpam = spam[trainIndicator == 0, ]
+```
+
+### 6. Exploratory data analysis
+To start, we want to look at summaries of the data, check for any missing data, create some exploratory plots, etc.
+
+The spam dataset is a basically a bunch of words and their respective frequencies. Below, we'll investigate it a bit.
+
+```{r recon}
+## Just have a look at the data
+names(trainSpam)
+head(trainSpam)
+table(trainSpam$type)
+
+## Now we'll plot the avg # of capital letters by class, as boxplots
+plot(trainSpam$capitalAve ~ trainSpam$type)
+
+## but this is tough to see, so let's take the log and add 1
+plot(log10(trainSpam$capitalAve + 1) ~ trainSpam$type)
+
+## now we plot relationships between the 1st 4 variables (again, log + 1)
+plot(log10(trainSpam[, 1:4] + 1))
+
+## and now we make a tree (dendogram?)
+hCluster = hclust(dist(t(trainSpam[, 1:57])))
+plot(hCluster)
+
+## again, log + 1 to clear it up
+hClusterUpdated = hclust(dist(t(log10(trainSpam[, 1:55] + 1))))
+plot(hClusterUpdated)
+```
+
+### 7. Statistical prediction/modeling
+Now we can try to do some real statistcal modeling. This should be informed by your exploratory analysis, and the exact method you use could depend on the question of interest and what your overarching goal is. You should be careful to account for any transformations/processing that the data has undergone, and it's always important to report your measures of uncertainty.
+
+Below, we'll loop over every variable in the dataset and develop a model based solely on that variable. Then, we'll check for the most accurate of those models.
+
+```{r models, warning=FALSE}
+trainSpam$numType = as.numeric(trainSpam$type) - 1
+costFunction = function(x, y) sum(x != (y > 0.5))
+cvError = rep(NA, 55)
+library(boot)
+for(i in 1:55) {
+     lmFormula = reformulate(names(trainSpam)[i], response = "numType")
+     glmFit = glm(lmFormula, family = "binomial", data = trainSpam)
+     cvError[i] = cv.glm(trainSpam, glmFit, costFunction, 2)$delta[2]
+}
+
+names(trainSpam)[which.min(cvError)]
+```
