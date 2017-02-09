@@ -16,4 +16,10 @@ This course covers reshape2, dplyr, etc., the best dataset manipulation tools.
 ## Course 4: Exploratory Data Analysis
 Tools for exploring data, and how to use visualization to help.
 
+## Course 5: Reproducible Research
+The importance of and the methods to create reproducible research.
+
+## Course 6: Statistical Inference
+How to infer characteristics of the population from a sample drawn from the population.
+
 Additional courses will be posted as they're completed.
