@@ -137,4 +137,25 @@ so the probability is equal to $e$ to the linear regression over $1 + e$ to the 
 
 $$\log \left( \frac {Pr(RW_i | RS_i, b_0, b_1)} {1 - Pr(RW_i | RS_i, b_0, b_1)} \right) = b_0 + b_1 RS_i$$
 
-So the *log of the odds* is the linear regression relationship. That *log of the odds* term is known as the logit, and you can flip between the odds and the probability with the logit and its counterpart, the expit $\frac {e^a} {1 + e^a}$, where $a = b_0 + b_1 RS_i$.
+So the *log of the odds* is the linear regression relationship. That *log of the odds* term is known as the *logit*, and you can flip between the odds and the probability with the logit and its counterpart, the expit $\frac {e^a} {1 + e^a}$, where $a = b_0 + b_1 RS_i$.
+
+What does all this mean? It's means that in logistic regression, we're modeling every trial as a coin flip where the success probability changes with $i$, and we're relating that probability to the regressors via the log of the odds.
+
+### Interpreting logistic regression
+Interpreting $b_0 + b_1RS_i$ is pretty straightforward. Plug in $RS_i = 0$ and you have $b_0$, which is the ~~probability~~ log odds of a Ravens win (remember, we're dealing in success probabilities) if their score $RS = 0$. This is kind of like the intercept term. So $\frac {e^{b_0}} {1 + e^{b_0}}$ is the *probability* associated with the log odds.
+
+$b_1$ is the slope term. $b_1 = b_0 + b_1(RS_i + 1) - [b_0 + b_1(RS_i)]$, which is the difference in log odds between scoring this point and *one more* point (change per unit).
+
+### History of odds
+Imagine you're playing a game where you flip a coin with success probability $p$. If heads, you win $X$, if tails, you lose $Y$. What $X$ and $Y$ make the game fair?
+
+$$E[earnings] = Xp - Y(1 - p) = 0$$
+
+which implies that
+
+$$\frac {Y}{X} = \frac {p}{1 - p}$$
+
+$Y$ represents how much you should be willing to put up (and thus be willing to lose) to gain $X$ dollars.
+
+# Pick back up at
+week 4, logistic regression part II video.
