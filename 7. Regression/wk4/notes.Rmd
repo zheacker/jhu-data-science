@@ -157,5 +157,23 @@ $$\frac {Y}{X} = \frac {p}{1 - p}$$
 
 $Y$ represents how much you should be willing to put up (and thus be willing to lose) to gain $X$ dollars.
 
-# Pick back up at
-week 4, logistic regression part II video.
+### Visualizing logistic regression
+So let's take a look at what this actually looks like.
+
+```{r}
+library(ggplot2)
+x <- seq(-10, 10, length = 1000)
+beta0 <- 0
+beta1 <- 2
+logit <- function(x, beta0, beta1) {
+     qplot(x = x, y = exp(beta0 + beta1*x) / (1 + exp(beta0 + beta1*x)))
+}
+logit(x, beta0, beta1)
+```
+
+We can see that the `beta0` term moves the entire function left/right on the x-axis.
+
+```{r}
+logit(x, 5, 2)
+```
+
