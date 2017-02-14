@@ -266,8 +266,9 @@ Futz with the date column a bit, then plot visits over time. Even though we know
 
 ```{r}
 gaData$julian <- julian(gaData$date)
+head(gaData)
 lml <- lm(gaData$visits ~ gaData$julian)
-ggplot(data = gaData, mapping = aes(x = julian, y = visits)) + geom_point() + geom_smooth(method = "lm", color = "red", size = 2)
+ggplot(data = gaData, mapping = aes(x = julian, y = visits)) + geom_point() + geom_smooth(method = "lm", color = "red", size = 2, se = F)
 ```
 
 So since linear models don't really make great sense with Poisson data, we might start by taking the natural log of the outcome. So the model would be:
@@ -332,3 +333,40 @@ ggplot(data = gaData, mapping = aes(x = julian, y = visits)) + geom_point() + ge
 ```
 
 ## Hodgepodge
+Just some motivation to continue to study regression models. Here's how we can fit more complicated functions using linear models. Well, we can add $x^2$ or $x^3$ terms, but we can use "knot" functions to fit much more complex functions.
+
+Our knot-model would be
+
+$$Y_i = \beta_0 + \beta_1X_i + \Sigma_{k=1}^d(x_i - \xi_k)_+\gamma_k + \epsilon_i$$
+
+The $\beta_0$ and $\beta_1$ terms are familiar, but that summation term is new (and odd). This is the knot function. That $X_+$ subscript means that this term evaluates to $X$ if $X > 0$, and 0 otherwise. Let's demonstrate with an example.
+
+```{r}
+n <- 500
+x <- seq(0, 4*pi, length = n)
+y <- sin(x) + rnorm(n, sd = .3)
+knots <- seq(0, 8*pi, length = 20)
+splineTerms <- sapply(knots, function(knot) (x > knot) * (x - knot))
+xMat <- cbind(1, x, splineTerms)
+yhat <- predict(lm(y ~ xMat - 1))
+qplot(x, y, size = I(3), color = I("steelblue")) + geom_path(aes(x, yhat), color = "black", size = 1)
+```
+
+The black line is our actual knot function; it's a continuous--but not continuously differentiable--function that fits our sine data.
+
+But we can make it continuously differentiable by adding squares to the function (code below).
+
+$$ Y_i = \beta_0 + \beta_1X_i + \beta_2X_i^2 + \Sigma_{k=1}^d (x_i - \xi_k)^2_+ \gamma_k + \epsilon_i$$
+
+```{r}
+splineTerms <- sapply(knots, function(knot) (x > knot) * (x - knot)^2)
+xMat <- cbind(1, x, x^2, splineTerms)
+yhat <- predict(lm(y ~ xMat - 1))
+qplot(x, y, size = I(3), color = I("steelblue")) + geom_path(aes(x, yhat), color = "black", size = 1)
+```
+
+And BOOM! now we have a continuously differentiable function.
+
+So this is cool because we've fit a pretty complex function with some pretty simple linear regression. But we have to know where the knot points are, and there are potential pitfalls if we use too many/too few knot points. But there are solutions to those problems.
+
+The collection of regressors is called a basis, and this is a pretty thoroughly studied field of mathematics. 
