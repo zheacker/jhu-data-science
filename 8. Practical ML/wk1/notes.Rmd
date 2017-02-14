@@ -1,0 +1,69 @@
+---
+title: "8. Practical ML - Week 1 Notes"
+output: html_notebook
+---
+
+# Motivation & Pre-requisites
+This course covers the basic ideas behind machine learning/prediction.
+
+- study design - training vs. test sets
+- conceptual issues - out of sample error, ROC curves
+- practical implementations - the `caret` package
+
+## Who predicts things?
+Local governments predict pension payments. Google predicts your ad clicks. Amazon/Netflix predict what movies you'll watch. Insurance companies predict your risk profile.
+
+## `caret`
+This package is awesome, we'll dig into it some more in this course.
+
+# What is prediction?
+Using characteristics about some data points to determine the relationship between those characteristics and the class of those data points. You use probability/sampling to build test/training sets, then you develop a prediction algorithm.
+
+## Steps in prediction
+You start with a question (of course) and your input data. You either use existing features, or you can develop them computationally, and then use some ML algorithm to predict stuff. You hone the parameters of that algorithm, then you transfer it over to a test dataset in order to evaluate its performance.
+
+## the SPAM example
+He goes through the SPAM data from the `kernlab` package. Use word frequency of the word "your" to build a threshold qualifier, then evaluate its efficacy (but only on the original dataset, which is kind of worthless).
+
+# Relative importance of steps
+So the relative importance of the steps for this ML process are: question > data > features > algorithms. **The most important step is the question.** Can't stress this enough, you have to know what you're shooting for. Then the data is the next most important component. Then making sure you get your features right. The algorithm is the least important (usually). Lots of algorithms can typically perform equally well, so don't get too hung up here.
+
+Remember, garbage in => garbage out. Predicting new movie ratings based on old movie ratings would probably be pretty easy, because it's the same type of data. It would be harder to predict disease from just gene expression data; even though they're related, mapping their relationship can be tough.
+
+What makes for good features? Well, most importantly, they capture the fundamental relationship that you're trying to leverage. There needs to be a real-world relationship between the data you put into an algorithm and the prediction it's trying to make. Good features also compress the data while retaining the most useful information. They should be created based on expert knowledge of the subject.
+
+Some common mistakes:
+Trying to automate feature selection. This is usually a bad idea. Black boxes can work, but it's almost always better to know what's going on in there. Also be sure to pay attention to the specifics of your dataset (know thy data!) and avoid throwing away data unnecessarily.
+
+### Qualities of good ML methods
+If you're showing it to somebody/need to explain it, it needs to be interpretable. PCA can compress data and still produce great features, but it might be impossible to know what they mean.
+
+It needs to be simple. Similar to interpretable.
+
+Simplicity/interpretability might be a tradeoff for accuracy. You want an accurate method, but you must balance that with the other considerations.
+
+You also want it to be fast and scalable. Particularly in business, these things need to be built with systems in mind.
+
+# In-sample & out-of-sample errors
+In-sample is the error rate you get on the same data set that you used to build your predictor. Sometimes called resubstitution error. This will always be a little optimistic because it is pretty much guaranteed to overfit just a little bit to the training data set.
+
+The out-of-sample error is the error rate you get on a new data set. Sometime called the generalization error. This is what you really care about, because the point of your algorithm is to go into new data and predict stuff.
+
+In-sample < out-of-sample error (always). Again, this is due to overfitting on the training set.
+
+# Prediction study design
+
+1. define your error rate
+2. split data into
+     - training, testing, validation (optional)
+3. on the training set, pick features
+     - use cross-validation
+4. on the training set, pick the prediction function
+     - use cross-validation
+5. if no validation
+     - apply to test set **exactly 1 time**
+6. if validation set
+     - apply to test set and refine
+     - apply to validation set **exactly 1 time**
+     
+The point is that there should always be 1 data set 
