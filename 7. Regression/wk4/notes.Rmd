@@ -158,7 +158,7 @@ $$\frac {Y}{X} = \frac {p}{1 - p}$$
 $Y$ represents how much you should be willing to put up (and thus be willing to lose) to gain $X$ dollars.
 
 ### Visualizing logistic regression
-So let's take a look at what this actually looks like.
+So let's take a look at what this actually looks like. Remember, our `beta0` and `beta1` terms are like the intercept/slope terms.
 
 ```{r}
 library(ggplot2)
@@ -171,9 +171,164 @@ logit <- function(x, beta0, beta1) {
 logit(x, beta0, beta1)
 ```
 
-We can see that the `beta0` term moves the entire function left/right on the x-axis.
+We can see that the `beta0` term moves the entire function left/right on the x-axis (the "intercept").
 
 ```{r}
 logit(x, 5, 2)
 ```
 
+And the `beta1` term manipulates the "slope" of the logistical threshold.
+
+```{r}
+## gradual threshold
+logit(x, 0, .5)
+```
+
+```{r}
+## steep threshold
+logit(x, 0, 5)
+```
+
+Also, we can see the effect of flipping the sign of this `beta1` term, which is to flip around the y-axis.
+
+```{r}
+## negative beta1
+logit(x, 0, -2)
+```
+
+### More logistic regression
+Let's use the Ravens win data to fit a model via the `glm` function.
+
+```{r}
+logRegRavens <- glm(ravensData$ravenWinNum ~ ravensData$ravenScore, family = "binomial")
+summary(logRegRavens)
+```
+
+So now we can interpret these results. Let's make a quick plot of the scores from our original data and the fitted values from our `glm` model.
+
+```{r}
+qplot(ravensData$ravenScore, logRegRavens$fitted.values)
+```
+
+Remember what those fitted values are: they're the score multiplied by the score coefficient, add the intercept term, then use the expit to convert to the actual probability scale. Notice that this plot only contains our original data's scores, so the logistic curve is incomplete.
+
+If we exponentiate the coefficients we would get:
+```{r}
+exp(logRegRavens$coefficients)
+```
+
+## Poisson GLM
+This all refers to unbounded count data, like calls to a call center, number of flu cases, number of cars that cross a bridge. Data can frequently be in the form of rates, like cars per unit time, % of kids passing a test. Linear regression with transformation is an option here...
+
+The Poisson distribution is a useful model for counts and rates. They work well for things like web traffic hits, incidence rates, approximating binomial probabilities with small $p$ and large $n$ (success probability is small with large number of trials). This also works for contingency tables. So you sample people from a population, count black/brown/blonde hair, then cross tabulate that with counts of brown/blue/green eyes.
+
+### The Poisson mass function
+
+* $X ~ Poisson(t\lambda)$ if
+
+$$P(X=x) = \frac{(t\lambda)^x e^{-t\lambda}} {x!}$$
+
+for $x = 0, 1, ...$
+
+* The mean of the Poisson distribution is $E[X] = t\lambda$, therefore $E[X/t] = \lambda$
+* the variance of the Poisson distribution is $Var(X) = t\lambda$
+* the Poisson tends to a normal distribution as $t\lambda$ gets large
+
+We'll start by taking a look at the website traffic data for J.Leek's website.
+
+```{r, eval=TRUE, echo=FALSE}
+## setup URL and path variables for this data
+trafficurl <- "https://dl.dropboxusercontent.com/u/7710864/data/gaData.rda"
+datapath <- "./data"
+trafficpath <- paste0(datapath, "/gaData.rda")
+
+## create the data directory if necessary
+if(!dir.exists(datapath)) {
+     dir.create(datapath)
+     print("Created /data directory")
+} else {
+     print("/data directory already exists")
+}
+
+## If there's no data, and no .zip, then download and unzip data
+## If there's no data, but there is a .zip, then unzip data
+if(!file.exists(trafficpath)) {
+  download.file(trafficurl, destfile = trafficpath)
+  print("Downloaded & extracted ravens data file")
+} else {
+  print("Found ravens data, ready to go")
+}
+
+load(trafficpath)
+```
+
+Futz with the date column a bit, then plot visits over time. Even though we know we can't exactly use a linear model for this data, let's go ahead and use it to throw a trendline on here.
+
+```{r}
+gaData$julian <- julian(gaData$date)
+lml <- lm(gaData$visits ~ gaData$julian)
+ggplot(data = gaData, mapping = aes(x = julian, y = visits)) + geom_point() + geom_smooth(method = "lm", color = "red", size = 2)
+```
+
+So since linear models don't really make great sense with Poisson data, we might start by taking the natural log of the outcome. So the model would be:
+
+$$log(NH_i) = b_0 + b_1JD_i + e_i$$
+
+where
+* $NH_i$ is the number of hits on the $i^{th}$ instant
+* $JD_i$ is the $i^{th}$ julian day
+* $b_0$ is the log number of hits on Julian day 0 (intercept)
+* $b_1$ is the increase in log number of hits per unit day (slope)
+* $e_i$ is the variation due to everything we didn't measure (error)
+
+Now we discuss expenentiating coefficients (to make them interpretable).
+
+$e^{E[log(Y)]}$ is the population geometric mean of $Y$. Here's why we call it that:
+
+The *empirical* geometric mean *of a sample* is $(\Pi_{i=1}^n y_i)^{1/n}$, the product of a sample, raised to $1/n$. If we take the log of that, we get the arithmetic mean, the ordinary mean (thus, the expected value), of the log data, which is $E[log(Y)] = \frac{1}{n} \Sigma_{i=1}^n log(y_i)$.
+
+So the geometric mean is just exponentiating the arithmetic mean of the log data.
+
+We know that with lots of data, that arithmetic mean will converge to something, and that something is the geometric mean (of the population, as $n$ becomes large).
+
+$$e^{\frac{1}{n} \Sigma_{i=1}^{n} log(y_i)} = (\Pi_{i=1}^{n} y_i)^{1/n}$$
+
+This all means that when you take the natural log of outcomes and fit a regression model, your *exponentiated* coefficients are interpretable with respect to geometric means.
+
+$e^{\beta_0}$ estimates the geometric mean hits on day 0 (of course, you should ensure that "day 0" is meaningful, unlike in this example)
+
+$e^{\beta_1}$ estimates relative increase/decrease in geometric mean hits per day
+
+Note that if you have 0s in your data, then `log` won't work, so it's not unusual to add 1 to your data to avoid this problem.
+
+```{r}
+round(exp(coef(lm(I(log(gaData$visits + 1)) ~ gaData$julian))), 4)
+```
+
+So the model is predicting 0 mean hits on day 0 (again, useless in this example), and a 0.2% increase per day.
+
+### Linear vs. Poisson regression
+
+#### Linear
+
+$$ NH_i = b_0 + b_1JD_i + e_i$$
+
+or
+
+$$E[NH_i|JD_i, b_0, b_1] = b_0 + b_1JD_i$$
+
+#### Poisson/log-linear
+
+$$log(E[NH_i|JD_i, b_0, b_1]) = b_0 + b_1JD_i$$
+
+or
+
+$$E[NH_i|JD_i, b_0, b_1] = exp(b_0 + b_1JD_i)$$
+
+Now we can plot the linear vs. the Poisson regression to show that Poisson gives us some curvature, and also makes more sense than a linear model for count data.
+
+```{r}
+ggplot(data = gaData, mapping = aes(x = julian, y = visits)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red") + geom_smooth(method = "glm", se = F, method.args = list(family = "poisson"), color = "blue")
+```
+
+## Hodgepodge
