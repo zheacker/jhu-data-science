@@ -66,4 +66,60 @@ In-sample < out-of-sample error (always). Again, this is due to overfitting on t
      - apply to test set and refine
      - apply to validation set **exactly 1 time**
      
-The point is that there should always be 1 data set 
+The point is that there should always be 1 data set that you leave out and subject to your model **exactly once**. This allows you to measure your model's performance on completely new data.
+
+The Netflix competition used the training > probe > quiz > test datasets methodology. Basically, at every step along that progression, you get to tune your model a bit more. But you only get to test your model on the *last* dataset one time.
+
+The problem with this is that you need to try to avoid small sample sizes. Obviously, if your dataset is really small, you introduce the likelihood that your algorithm is landing correct predictions *by chance*, which is of course not what you want. General rules of thumb for dataset sizes:
+
+- given a large sample size
+  - 60% training
+  - 20% test
+  - 20% validation
+- given medium sample size
+  - 60% training
+  - 40% test
+- given small sample size
+  - do cross validation
+  - report caveat of small sample size
+  - but really, get more data
+
+So remember, set aside your final test dataset and *don't look at it*. In general, you want to randomly sample the data to build the train/test sets. Some care must be taken to reflect the structure of the problem, such as time series data or other dependencies within the data (called backtesting in finance), but you want the most diversity possible in all datasets.
+
+# Types of errors
+So let's call items we identify "positive" and items we reject "negative." That means that:
+
+* true positive = correctly identified
+* false positive = incorrectly identified
+* true negative = correctly rejected
+* false negative = incorrectly rejected
+
+Here's a medical testing example:
+
+* true positive = sick people correctly diagnosed as sick
+* false positive = well people incorrectly diagnosed as sick
+* true negative = well people correctly diagnosed as well
+* false negative = sick people incorrectly diagnosed as well
+
+From these definitions we can derive the following metrics of model performance:
+
+* sensitivity: Pr(positive test | disease); $\frac {TP}{TP + FN}$
+* specificity: Pr(negative test | no disease); $\frac {TN}{FP + TN}$
+* \+ predictive value: Pr(disease | positive test); $\frac {TP}{TP + FP}$
+* \- predictive value: Pr(no disease | negative test); $\frac {TN}{FN + TN}$
+* accuracy: Pr(correct prediction); $\frac {TP + TN} {TP + FP + FN + TN}$
+
+The above metrics work well for binary/classification errors, but you need something different for continuous data. Unlike in classification problems, with continuous data you're also concerned with *how close* you got to the right answer. For this, we might use the mean squared error (MSE) or the root mean squared error (RMSE):
+
+Mean squared error:
+
+$$ \frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2 $$
+
+Root mean squared error:
+
+$$ \sqrt{ \frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2 } $$
+
+where $\hat y_i$ is our prediction and $y_i$ is the true value for the $i^{th}$ element. The MSE takes the difference between the two (our error) and squares them to force them positive, then averages that error over all data points.
+
+The RMSE is the same thing, but taking the square root allows us to interpret the error on the same scale as the original data, as opposed to the squared scale.
+
