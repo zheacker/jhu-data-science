@@ -1,0 +1,12 @@
+---
+title: "8. Practical ML - Week 2 Notes"
+output: html_notebook
+---
+
+# The `caret` package
+This package is a kind of wrapper for a lot of the prediction algorithms that you might wind up using. You can use the pre-processing tools to clean data and get the features set up, you can split data and easily cross validate, as well as create your train/test sets. And you can compare various models with one another vis confusion matrices.
+
+So why use this `caret` thing? Well, there are a lot of machine learning algorithms in R. Just a few: linear discriminant analysis, regression, naive bayes, support vector machines, classification and regression trees, random forests, and boosting. Each of these algorithms come from base R or some package developed by some grad student somewhere. Generally, the algorithm's function will return an object of a type that is specific to that algorithm. That is, the `glm` function for generalized linear models will return a different kind of object than the `lda` function, which performs linear discriminant analysis.
+
+If you then wanted to call the `predict` function on those various objects, you would have to pass in different parameters for each type of object. This is where `caret` comes in. It provides a unified framework for working with these model objects.
+
