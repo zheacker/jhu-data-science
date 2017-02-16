@@ -15,7 +15,7 @@ toInstall <- c(
      "xlsx"
 )
 
-install.packages(toInstall, quiet=TRUE)
+install.packages(toInstall)
 
 rm(toInstall)
 
