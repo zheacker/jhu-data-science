@@ -10,3 +10,21 @@ So why use this `caret` thing? Well, there are a lot of machine learning algorit
 
 If you then wanted to call the `predict` function on those various objects, you would have to pass in different parameters for each type of object. This is where `caret` comes in. It provides a unified framework for working with these model objects.
 
+Here, we'll use `caret` to split the spam email dataset into training and testing sets.
+
+```{r}
+library(caret)
+library(kernlab)
+data("spam")
+
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = F)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+```
+
+Now we can fit a model.
+```{r}
+set.seed(32343)
+modelFit <- train(type ~ ., data = training, method = "glm")
+```
+
