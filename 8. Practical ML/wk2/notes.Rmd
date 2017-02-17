@@ -91,3 +91,4 @@ folds$test[[1]]
 ```
 
 ## Training options
+Let's go back to the trusty spam dataset. See the first R code chunk. Normally you could just use the `train()` function, which makes a bunch of default choices for you.
