@@ -5,6 +5,7 @@ toInstall <- c(
      "boot",
      "car",
      "caret",
+     "e1071",
      "ezknitr",
      "formatR",
      "GGally",
