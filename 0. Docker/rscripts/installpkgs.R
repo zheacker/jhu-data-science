@@ -5,6 +5,7 @@ toInstall <- c(
      "boot",
      "car",
      "caret",
+     "e1071",
      "ezknitr",
      "formatR",
      "GGally",
@@ -15,7 +16,7 @@ toInstall <- c(
      "xlsx"
 )
 
-install.packages(toInstall, quiet=TRUE)
+install.packages(toInstall)
 
 rm(toInstall)
 
