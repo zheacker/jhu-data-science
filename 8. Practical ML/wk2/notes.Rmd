@@ -26,5 +26,68 @@ Now we can fit a model.
 ```{r}
 set.seed(32343)
 modelFit <- train(type ~ ., data = training, method = "glm")
+modelFit
+modelFit$finalModel
+predictions <- predict(modelFit, testing)
+confusionMatrix(predictions, testing$type)
 ```
 
+So this seems really useful as a way to evaluate multiple models, but it seems like the community generally opts to just learn and use whatever tool does the specific job they want to do. Still, I'll consider making this part of my every-day R workflow.
+
+## Data slicing
+You might use data slicing to create your initial training/testing sets, or within your training set for cross-validation or bootstrapping. Well, `caret` does this, too.
+
+### Splitting
+Below is the same R code from the beginning of this document, non-functional. We use the `createDataPartition()` function to create our training/testing sets, and we tell it we want 75% of the data to go into the training set. We can then use the `inTrain` object to subset the spam dataset into our split datasets.
+
+```{r, eval=FALSE}
+library(caret)
+library(kernlab)
+data("spam")
+
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = F)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+```
+
+### k-fold
+You could also do k-fold cross-validation. `createFolds()` lets us do this really easily. We tell it what our response variable is (type in this case), how many folds we want, `list = TRUE` will return a massive list containing all folds' indices, and `returnTrain = TRUE` tells it to return the actual training dataset (`FALSE` will return the test set; we can see that the size of the folds is much smaller).
+
+```{r}
+set.seed(32323)
+folds <- createFolds(y = spam$type, k = 10, list = TRUE, returnTrain = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+
+set.seed(32323)
+folds <- createFolds(y = spam$type, k = 10, list = TRUE, returnTrain = FALSE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+### Resampling
+Yep, `caret` can take bootstrap samples. See below. Note the repeated examples due to sampling with replacement.
+
+```{r}
+set.seed(32323)
+folds <- createResample(y = spam$type, times = 10, list = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+### Time slices
+Remember how we said that when you're working with time series data you can't just randomly sample data points, because you'll miss the time-dependent structure in the data? Instead you have to sample it in chunks. In the code below we work with 1000 timestamps. When we create the time slices, we tell it what the data is (`y`), how many samples we want per training chunk (20), and then how many data points *after* that chunk that we want to predict (10).
+
+```{r}
+set.seed(32323)
+tme <- 1:1000
+folds <- createTimeSlices(y = tme, initialWindow = 20, horizon = 10)
+
+names(folds)
+
+folds$train[[1]]
+
+folds$test[[1]]
+```
+
+## Training options
