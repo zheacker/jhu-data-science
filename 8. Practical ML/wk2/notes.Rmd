@@ -91,4 +91,145 @@ folds$test[[1]]
 ```
 
 ## Training options
-Let's go back to the trusty spam dataset. See the first R code chunk. Normally you could just use the `train()` function, which makes a bunch of default choices for you.
+Let's go back to the trusty spam dataset. See the first R code chunk. Normally, you could just use the `train()` function, which makes a bunch of default choices for you; you pretty much just have to provide the dataset and the method (like glm). But you can specify any of those default choices that you like at runtime. You can find the documentation for `caret`, and also `train` [here](http://topepo.github.io/caret/model-training-and-tuning.html).
+
+Here's a run down of some of the `train` arguments.
+
+- `method` - the type of model you want to build
+- `preProcess = NULL` - some kind of pre-processing steps that we'll cover later
+- `weights = NULL` - use this to weight some data more/less than other examples
+- `metric = ifelse(is.factor(y), "Accuracy", "RMSE")` - the metric that you want to maximize. Default is accuracy for categorical models, root mean squared error for continuous. Other options are `Kappa` for categorical and `RSquared` for continuous data.
+- `trControl = trainControl()` - a special function call to really fine tune the behavior of `train`
+```{r}
+args(trainControl)
+```
+
+As you can see, `trainControl` provides tons of options, so consult the documentation. Here are some of the arguments to `trainControl` and their options:
+
+- `method`
+     - boot = bootstrapping
+     - boot632 = bootstrapping with adjustment
+     - cv = cross validation
+     - repeatedcv = repeated cross validation
+     - LOOCV = leave one out cross validation
+- `number`
+     - for boot/cross validation
+     - number of subsamples to take
+- `repeats`
+     - number of times to repeat subsampling
+     - can really slow things down if this is large
+
+Remember how important it is to set the seed. This is vital. You should set an overall seed for the entire process, and then be sure to consider any segments of your code that might need their own seeds.
+
+## Plotting predictors
+We're going to use the Wage dataset from the ISLR (Introduction to Statistical Learning) package.
+
+```{r}
+library(ISLR)
+library(ggplot2)
+
+data(Wage)
+summary(Wage)
+```
+
+We see we have the year, age of the person, gender, marital status, race, education, region, job class, and health. Note that this dataset consists only of men from the mid-atlantic region.
+
+Before we do anything else, we need to split the data into training and test sets. This should be the first thing you do to ensure that the test set truly is entirely blind to the training set.
+
+```{r}
+inTrain <- createDataPartition(y = Wage$wage, p = 0.7, list = FALSE)
+
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+
+### Scatterplots
+So now that the data is split, we're only going to use the `training` set. We can use `caret::featurePlot()` to create a pairs plot.
+
+```{r}
+featurePlot(x = training[, c("age", "education", "jobclass")], y = training$wage, plot = "pairs")
+```
+
+So that graph probably looks like a trainwreck, so fyi, from bottom-left to top-right, the diagonals are age, education, job class, and then $Y$, wage.
+
+Since that's garbage, let's use our favorite:
+
+```{r}
+qplot(data = training, age, wage)
+```
+
+We can see some semblance of a relationship in the bulk of the data, but then there's that weird smattering up top.
+
+```{r}
+qplot(age, wage, color=jobclass, data = training)
+```
+
+Of course, it does look like there are more information-type jobs in that upper-tier of wage.
+
+We can also play with regression smoothers.
+
+```{r}
+qq <- qplot(age, wage, color=education, data = training)
+qq + geom_smooth(method = "lm")
+```
+
+### Continuous variables into factors
+You can use the `cut2` function from the `Hmisc` package to split the wage variable into multiple groups. You might do this if it appears clear that there are some clear clusters in the data, or if you just want to treat your response as a categorical variable.
+
+```{r}
+library(Hmisc)
+cutWage <- cut2(training$wage, g = 3)
+table(cutWage)
+```
+
+This creates a factor with `g` levels, and `table` shows us the ranges and sizes of those groups. Now we can do something like boxplots.
+
+```{r}
+p1 <- qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot"))
+p1
+```
+
+You can add the "jitter"ed data points to see more density information.
+
+```{r}
+p2 <- qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot", "jitter"))
+p2
+```
+
+Another reason to treat the response as categorical might be to build simple numerical tables.
+
+```{r}
+t1 <- table(cutWage, training$jobclass)
+t1
+prop.table(t1, 1)
+```
+
+### Density plots
+And you can build good old density plots.
+
+```{r}
+qplot(wage, color=education, data = training, geom = "density")
+```
+
+## Basic preprocessing
+Your variables won't be perfect, and you'll need to plot them, have a look and get an understanding of them, then process them in whatever way will make them more useful for your model.
+
+But why preprocess? Well, below we have a histogram of the `capitalAve` variable from the spam dataset, which tells us the number of consecutive capital letters in a message (or rather the average length of runs of capital letters in that message).
+
+```{r}
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = FALSE)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+qplot(training$capitalAve)
+```
+
+Needless to say, this is an incredibly skewed variable, which can cause problems for models.
+
+```{r}
+mean(training$capitalAve)
+sd(training$capitalAve)
+```
+
