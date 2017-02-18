@@ -9,6 +9,7 @@ toInstall <- c(
      "ezknitr",
      "formatR",
      "GGally",
+     "ISLR",
      "kernlab",
      "KernSmooth",
      "UsingR",
