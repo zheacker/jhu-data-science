@@ -233,3 +233,86 @@ mean(training$capitalAve)
 sd(training$capitalAve)
 ```
 
+### Standardizing data - center & scale
+We can see that the standard deviation is *much* larger than the mean. We can deal with this by 'standardizing' the variable, which should be familiar by now. You subtract the mean, divide the whole thing by the standard deviation. This results in a variable with $mean = 0$ and $st.dev. = 1$.
+
+```{r}
+trainCapAve <- training$capitalAve
+trainCapAveStnd <- (trainCapAve - mean(trainCapAve)) / sd(trainCapAve)
+mean(trainCapAveStnd)
+sd(trainCapAveStnd)
+```
+
+Now that was the training set. What about the test set? **Pay attention here, this is super important.**
+
+If you use a standardized feature to train your model, then the model will expect that feature to be standardized (on the same scale) when it runs on the test data as well. This is intuitive.
+
+**What is less intuitive** is that when you standardize the feature in the test set, **you don't standardize it with the test set's version of that feature.** You take the *test set* feature, subtract from that the *training set* feature's mean, and divide by the *training set* feature's standard deviation.
+
+$$ \frac {TestVector - mean(Train)}{sd(Train)}$$
+
+This ensures that the test data is rescaled to match the training data exactly. Note that the mean won't be 0 and the sd won't be 1.
+
+```{r}
+testCapAve <- testing$capitalAve
+testCapAveStnd <- (testCapAve - mean(trainCapAve)) / sd(trainCapAve)
+mean(testCapAveStnd)
+sd(testCapAveStnd)
+```
+
+Lucky us, there's a `preProcess()` function that can do a lot of this. This is from `caret`. We pass in every variable (except the response, column 58) and center and scale them, like we did above.
+
+```{r}
+preObj <- preProcess(training[, -58], method = c("center", "scale"))
+trainCapAveStnd <- predict(preObj, training[, -58])$capitalAve
+mean(trainCapAveStnd)
+sd(trainCapAveStnd)
+```
+
+The tricky part is when we pass that `preObj`, from the `preProcess` function, into the `predict` function. `preObj` stores the info about the preprocessing steps that created it (center and scale, in this case). And its values come from the context that created it (the `training[, -58]` data in the function call).
+
+So we can pass that to `predict`, along with any data, and it will apply those same processing steps to that data. Above, we passed it *the same* data that created it, so the mean/sd were as expected.
+
+But let's pass in the *testing* data.
+
+```{r}
+testCapAveStnd <- predict(preObj, testing[, -58])$capitalAve
+mean(testCapAveStnd)
+sd(testCapAveStnd)
+```
+
+We can also pass these tools directly into the `train` function via the `preProcess` argument.
+
+```{r}
+set.seed(32343)
+modelFit <- train(type ~., data = training, preProcess = c("center", "scale"), method = "glm")
+modelFit
+```
+
+### Box-cox transformations
+Centering and scaling are not the only kind of transformations you can do to your data. Here's the Box-Cox transformation. I dunno what that transformation is or does. I dunno what the Q-Q plot is or tells me. 
+
+```{r}
+preObj <- preProcess(training[, -58], method = c("BoxCox"))
+predictions <- predict(preObj, training[, -58])
+trainCapAveStnd <- predictions$capitalAve
+qplot(trainCapAveStnd)
+ggplot(data = predictions, aes(sample = predictions$capitalAve)) + stat_qq()
+```
+
+### Imputing data
+`NA` values are bad. You can interpolate them based on the rest of the data, which is called imputing. Here's how.
+
+```{r}
+set.seed(13343)
+
+# make some NA values
+training$capAve <- training$capitalAve
+selectNA <- rbinom(dim(training)[1], size = 1, prob = 0.05)==1
+training$capAve[selectNA] <- NA
+
+# impute & standardize
+preObj <- preProcess(training[, -58], method = "knnImpute")
+capAve <- predict(preObj, training[, -58])$capAve
+```
+
