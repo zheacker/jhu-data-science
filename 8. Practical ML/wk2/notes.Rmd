@@ -1,0 +1,318 @@
+---
+title: "8. Practical ML - Week 2 Notes"
+output: html_notebook
+---
+
+# The `caret` package
+This package is a kind of wrapper for a lot of the prediction algorithms that you might wind up using. You can use the pre-processing tools to clean data and get the features set up, you can split data and easily cross validate, as well as create your train/test sets. And you can compare various models with one another vis confusion matrices.
+
+So why use this `caret` thing? Well, there are a lot of machine learning algorithms in R. Just a few: linear discriminant analysis, regression, naive bayes, support vector machines, classification and regression trees, random forests, and boosting. Each of these algorithms come from base R or some package developed by some grad student somewhere. Generally, the algorithm's function will return an object of a type that is specific to that algorithm. That is, the `glm` function for generalized linear models will return a different kind of object than the `lda` function, which performs linear discriminant analysis.
+
+If you then wanted to call the `predict` function on those various objects, you would have to pass in different parameters for each type of object. This is where `caret` comes in. It provides a unified framework for working with these model objects.
+
+Here, we'll use `caret` to split the spam email dataset into training and testing sets.
+
+```{r}
+library(caret)
+library(kernlab)
+data("spam")
+
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = F)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+```
+
+Now we can fit a model.
+```{r}
+set.seed(32343)
+modelFit <- train(type ~ ., data = training, method = "glm")
+modelFit
+modelFit$finalModel
+predictions <- predict(modelFit, testing)
+confusionMatrix(predictions, testing$type)
+```
+
+So this seems really useful as a way to evaluate multiple models, but it seems like the community generally opts to just learn and use whatever tool does the specific job they want to do. Still, I'll consider making this part of my every-day R workflow.
+
+## Data slicing
+You might use data slicing to create your initial training/testing sets, or within your training set for cross-validation or bootstrapping. Well, `caret` does this, too.
+
+### Splitting
+Below is the same R code from the beginning of this document, non-functional. We use the `createDataPartition()` function to create our training/testing sets, and we tell it we want 75% of the data to go into the training set. We can then use the `inTrain` object to subset the spam dataset into our split datasets.
+
+```{r, eval=FALSE}
+library(caret)
+library(kernlab)
+data("spam")
+
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = F)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+```
+
+### k-fold
+You could also do k-fold cross-validation. `createFolds()` lets us do this really easily. We tell it what our response variable is (type in this case), how many folds we want, `list = TRUE` will return a massive list containing all folds' indices, and `returnTrain = TRUE` tells it to return the actual training dataset (`FALSE` will return the test set; we can see that the size of the folds is much smaller).
+
+```{r}
+set.seed(32323)
+folds <- createFolds(y = spam$type, k = 10, list = TRUE, returnTrain = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+
+set.seed(32323)
+folds <- createFolds(y = spam$type, k = 10, list = TRUE, returnTrain = FALSE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+### Resampling
+Yep, `caret` can take bootstrap samples. See below. Note the repeated examples due to sampling with replacement.
+
+```{r}
+set.seed(32323)
+folds <- createResample(y = spam$type, times = 10, list = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+### Time slices
+Remember how we said that when you're working with time series data you can't just randomly sample data points, because you'll miss the time-dependent structure in the data? Instead you have to sample it in chunks. In the code below we work with 1000 timestamps. When we create the time slices, we tell it what the data is (`y`), how many samples we want per training chunk (20), and then how many data points *after* that chunk that we want to predict (10).
+
+```{r}
+set.seed(32323)
+tme <- 1:1000
+folds <- createTimeSlices(y = tme, initialWindow = 20, horizon = 10)
+
+names(folds)
+
+folds$train[[1]]
+
+folds$test[[1]]
+```
+
+## Training options
+Let's go back to the trusty spam dataset. See the first R code chunk. Normally, you could just use the `train()` function, which makes a bunch of default choices for you; you pretty much just have to provide the dataset and the method (like glm). But you can specify any of those default choices that you like at runtime. You can find the documentation for `caret`, and also `train` [here](http://topepo.github.io/caret/model-training-and-tuning.html).
+
+Here's a run down of some of the `train` arguments.
+
+- `method` - the type of model you want to build
+- `preProcess = NULL` - some kind of pre-processing steps that we'll cover later
+- `weights = NULL` - use this to weight some data more/less than other examples
+- `metric = ifelse(is.factor(y), "Accuracy", "RMSE")` - the metric that you want to maximize. Default is accuracy for categorical models, root mean squared error for continuous. Other options are `Kappa` for categorical and `RSquared` for continuous data.
+- `trControl = trainControl()` - a special function call to really fine tune the behavior of `train`
+```{r}
+args(trainControl)
+```
+
+As you can see, `trainControl` provides tons of options, so consult the documentation. Here are some of the arguments to `trainControl` and their options:
+
+- `method`
+     - boot = bootstrapping
+     - boot632 = bootstrapping with adjustment
+     - cv = cross validation
+     - repeatedcv = repeated cross validation
+     - LOOCV = leave one out cross validation
+- `number`
+     - for boot/cross validation
+     - number of subsamples to take
+- `repeats`
+     - number of times to repeat subsampling
+     - can really slow things down if this is large
+
+Remember how important it is to set the seed. This is vital. You should set an overall seed for the entire process, and then be sure to consider any segments of your code that might need their own seeds.
+
+## Plotting predictors
+We're going to use the Wage dataset from the ISLR (Introduction to Statistical Learning) package.
+
+```{r}
+library(ISLR)
+library(ggplot2)
+
+data(Wage)
+summary(Wage)
+```
+
+We see we have the year, age of the person, gender, marital status, race, education, region, job class, and health. Note that this dataset consists only of men from the mid-atlantic region.
+
+Before we do anything else, we need to split the data into training and test sets. This should be the first thing you do to ensure that the test set truly is entirely blind to the training set.
+
+```{r}
+inTrain <- createDataPartition(y = Wage$wage, p = 0.7, list = FALSE)
+
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+
+### Scatterplots
+So now that the data is split, we're only going to use the `training` set. We can use `caret::featurePlot()` to create a pairs plot.
+
+```{r}
+featurePlot(x = training[, c("age", "education", "jobclass")], y = training$wage, plot = "pairs")
+```
+
+So that graph probably looks like a trainwreck, so fyi, from bottom-left to top-right, the diagonals are age, education, job class, and then $Y$, wage.
+
+Since that's garbage, let's use our favorite:
+
+```{r}
+qplot(data = training, age, wage)
+```
+
+We can see some semblance of a relationship in the bulk of the data, but then there's that weird smattering up top.
+
+```{r}
+qplot(age, wage, color=jobclass, data = training)
+```
+
+Of course, it does look like there are more information-type jobs in that upper-tier of wage.
+
+We can also play with regression smoothers.
+
+```{r}
+qq <- qplot(age, wage, color=education, data = training)
+qq + geom_smooth(method = "lm")
+```
+
+### Continuous variables into factors
+You can use the `cut2` function from the `Hmisc` package to split the wage variable into multiple groups. You might do this if it appears clear that there are some clear clusters in the data, or if you just want to treat your response as a categorical variable.
+
+```{r}
+library(Hmisc)
+cutWage <- cut2(training$wage, g = 3)
+table(cutWage)
+```
+
+This creates a factor with `g` levels, and `table` shows us the ranges and sizes of those groups. Now we can do something like boxplots.
+
+```{r}
+p1 <- qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot"))
+p1
+```
+
+You can add the "jitter"ed data points to see more density information.
+
+```{r}
+p2 <- qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot", "jitter"))
+p2
+```
+
+Another reason to treat the response as categorical might be to build simple numerical tables.
+
+```{r}
+t1 <- table(cutWage, training$jobclass)
+t1
+prop.table(t1, 1)
+```
+
+### Density plots
+And you can build good old density plots.
+
+```{r}
+qplot(wage, color=education, data = training, geom = "density")
+```
+
+## Basic preprocessing
+Your variables won't be perfect, and you'll need to plot them, have a look and get an understanding of them, then process them in whatever way will make them more useful for your model.
+
+But why preprocess? Well, below we have a histogram of the `capitalAve` variable from the spam dataset, which tells us the number of consecutive capital letters in a message (or rather the average length of runs of capital letters in that message).
+
+```{r}
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = FALSE)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+qplot(training$capitalAve)
+```
+
+Needless to say, this is an incredibly skewed variable, which can cause problems for models.
+
+```{r}
+mean(training$capitalAve)
+sd(training$capitalAve)
+```
+
+### Standardizing data - center & scale
+We can see that the standard deviation is *much* larger than the mean. We can deal with this by 'standardizing' the variable, which should be familiar by now. You subtract the mean, divide the whole thing by the standard deviation. This results in a variable with $mean = 0$ and $st.dev. = 1$.
+
+```{r}
+trainCapAve <- training$capitalAve
+trainCapAveStnd <- (trainCapAve - mean(trainCapAve)) / sd(trainCapAve)
+mean(trainCapAveStnd)
+sd(trainCapAveStnd)
+```
+
+Now that was the training set. What about the test set? **Pay attention here, this is super important.**
+
+If you use a standardized feature to train your model, then the model will expect that feature to be standardized (on the same scale) when it runs on the test data as well. This is intuitive.
+
+**What is less intuitive** is that when you standardize the feature in the test set, **you don't standardize it with the test set's version of that feature.** You take the *test set* feature, subtract from that the *training set* feature's mean, and divide by the *training set* feature's standard deviation.
+
+$$ \frac {TestVector - mean(Train)}{sd(Train)}$$
+
+This ensures that the test data is rescaled to match the training data exactly. Note that the mean won't be 0 and the sd won't be 1.
+
+```{r}
+testCapAve <- testing$capitalAve
+testCapAveStnd <- (testCapAve - mean(trainCapAve)) / sd(trainCapAve)
+mean(testCapAveStnd)
+sd(testCapAveStnd)
+```
+
+Lucky us, there's a `preProcess()` function that can do a lot of this. This is from `caret`. We pass in every variable (except the response, column 58) and center and scale them, like we did above.
+
+```{r}
+preObj <- preProcess(training[, -58], method = c("center", "scale"))
+trainCapAveStnd <- predict(preObj, training[, -58])$capitalAve
+mean(trainCapAveStnd)
+sd(trainCapAveStnd)
+```
+
+The tricky part is when we pass that `preObj`, from the `preProcess` function, into the `predict` function. `preObj` stores the info about the preprocessing steps that created it (center and scale, in this case). And its values come from the context that created it (the `training[, -58]` data in the function call).
+
+So we can pass that to `predict`, along with any data, and it will apply those same processing steps to that data. Above, we passed it *the same* data that created it, so the mean/sd were as expected.
+
+But let's pass in the *testing* data.
+
+```{r}
+testCapAveStnd <- predict(preObj, testing[, -58])$capitalAve
+mean(testCapAveStnd)
+sd(testCapAveStnd)
+```
+
+We can also pass these tools directly into the `train` function via the `preProcess` argument.
+
+```{r}
+set.seed(32343)
+modelFit <- train(type ~., data = training, preProcess = c("center", "scale"), method = "glm")
+modelFit
+```
+
+### Box-cox transformations
+Centering and scaling are not the only kind of transformations you can do to your data. Here's the Box-Cox transformation. I dunno what that transformation is or does. I dunno what the Q-Q plot is or tells me. 
+
+```{r}
+preObj <- preProcess(training[, -58], method = c("BoxCox"))
+predictions <- predict(preObj, training[, -58])
+trainCapAveStnd <- predictions$capitalAve
+qplot(trainCapAveStnd)
+ggplot(data = predictions, aes(sample = predictions$capitalAve)) + stat_qq()
+```
+
+### Imputing data
+`NA` values are bad. You can interpolate them based on the rest of the data, which is called imputing. Here's how.
+
+```{r}
+set.seed(13343)
+
+# make some NA values
+training$capAve <- training$capitalAve
+selectNA <- rbinom(dim(training)[1], size = 1, prob = 0.05)==1
+training$capAve[selectNA] <- NA
+
+# impute & standardize
+preObj <- preProcess(training[, -58], method = "knnImpute")
+capAve <- predict(preObj, training[, -58])$capAve
+```
+

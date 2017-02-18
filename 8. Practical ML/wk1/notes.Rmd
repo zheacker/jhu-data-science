@@ -1,0 +1,218 @@
+---
+title: "8. Practical ML - Week 1 Notes"
+output: html_notebook
+---
+
+# Motivation & Pre-requisites
+This course covers the basic ideas behind machine learning/prediction.
+
+- study design - training vs. test sets
+- conceptual issues - out of sample error, ROC curves
+- practical implementations - the `caret` package
+
+## Who predicts things?
+Local governments predict pension payments. Google predicts your ad clicks. Amazon/Netflix predict what movies you'll watch. Insurance companies predict your risk profile.
+
+## `caret`
+This package is awesome, we'll dig into it some more in this course.
+
+# What is prediction?
+Using characteristics about some data points to determine the relationship between those characteristics and the class of those data points. You use probability/sampling to build test/training sets, then you develop a prediction algorithm.
+
+## Steps in prediction
+You start with a question (of course) and your input data. You either use existing features, or you can develop them computationally, and then use some ML algorithm to predict stuff. You hone the parameters of that algorithm, then you transfer it over to a test dataset in order to evaluate its performance.
+
+## the SPAM example
+He goes through the SPAM data from the `kernlab` package. Use word frequency of the word "your" to build a threshold qualifier, then evaluate its efficacy (but only on the original dataset, which is kind of worthless).
+
+# Relative importance of steps
+So the relative importance of the steps for this ML process are: question > data > features > algorithms. **The most important step is the question.** Can't stress this enough, you have to know what you're shooting for. Then the data is the next most important component. Then making sure you get your features right. The algorithm is the least important (usually). Lots of algorithms can typically perform equally well, so don't get too hung up here.
+
+Remember, garbage in => garbage out. Predicting new movie ratings based on old movie ratings would probably be pretty easy, because it's the same type of data. It would be harder to predict disease from just gene expression data; even though they're related, mapping their relationship can be tough.
+
+What makes for good features? Well, most importantly, they capture the fundamental relationship that you're trying to leverage. There needs to be a real-world relationship between the data you put into an algorithm and the prediction it's trying to make. Good features also compress the data while retaining the most useful information. They should be created based on expert knowledge of the subject.
+
+Some common mistakes:
+Trying to automate feature selection. This is usually a bad idea. Black boxes can work, but it's almost always better to know what's going on in there. Also be sure to pay attention to the specifics of your dataset (know thy data!) and avoid throwing away data unnecessarily.
+
+### Qualities of good ML methods
+If you're showing it to somebody/need to explain it, it needs to be interpretable. PCA can compress data and still produce great features, but it might be impossible to know what they mean.
+
+It needs to be simple. Similar to interpretable.
+
+Simplicity/interpretability might be a tradeoff for accuracy. You want an accurate method, but you must balance that with the other considerations.
+
+You also want it to be fast and scalable. Particularly in business, these things need to be built with systems in mind.
+
+# In-sample & out-of-sample errors
+In-sample is the error rate you get on the same data set that you used to build your predictor. Sometimes called resubstitution error. This will always be a little optimistic because it is pretty much guaranteed to overfit just a little bit to the training data set.
+
+The out-of-sample error is the error rate you get on a new data set. Sometime called the generalization error. This is what you really care about, because the point of your algorithm is to go into new data and predict stuff.
+
+In-sample < out-of-sample error (always). Again, this is due to overfitting on the training set.
+
+# Prediction study design
+
+1. define your error rate
+2. split data into
+     - training, testing, validation (optional)
+3. on the training set, pick features
+     - use cross-validation
+4. on the training set, pick the prediction function
+     - use cross-validation
+5. if no validation
+     - apply to test set **exactly 1 time**
+6. if validation set
+     - apply to test set and refine
+     - apply to validation set **exactly 1 time**
+     
+The point is that there should always be 1 data set that you leave out and subject to your model **exactly once**. This allows you to measure your model's performance on completely new data.
+
+The Netflix competition used the training > probe > quiz > test datasets methodology. Basically, at every step along that progression, you get to tune your model a bit more. But you only get to test your model on the *last* dataset one time.
+
+The problem with this is that you need to try to avoid small sample sizes. Obviously, if your dataset is really small, you introduce the likelihood that your algorithm is landing correct predictions *by chance*, which is of course not what you want. General rules of thumb for dataset sizes:
+
+- given a large sample size
+  - 60% training
+  - 20% test
+  - 20% validation
+- given medium sample size
+  - 60% training
+  - 40% test
+- given small sample size
+  - do cross validation
+  - report caveat of small sample size
+  - but really, get more data
+
+So remember, set aside your final test dataset and *don't look at it*. In general, you want to randomly sample the data to build the train/test sets. Some care must be taken to reflect the structure of the problem, such as time series data or other dependencies within the data (called backtesting in finance), but you want the most diversity possible in all datasets.
+
+# Types of errors
+So let's call items we identify "positive" and items we reject "negative." That means that:
+
+* true positive = correctly identified
+* false positive = incorrectly identified
+* true negative = correctly rejected
+* false negative = incorrectly rejected
+
+Here's a medical testing example:
+
+* true positive = sick people correctly diagnosed as sick
+* false positive = well people incorrectly diagnosed as sick
+* true negative = well people correctly diagnosed as well
+* false negative = sick people incorrectly diagnosed as well
+
+From these definitions we can derive the following metrics of model performance:
+
+* sensitivity: Pr(positive test | disease); $\frac {TP}{TP + FN}$
+* specificity: Pr(negative test | no disease); $\frac {TN}{FP + TN}$
+* \+ predictive value: Pr(disease | positive test); $\frac {TP}{TP + FP}$
+* \- predictive value: Pr(no disease | negative test); $\frac {TN}{FN + TN}$
+* accuracy: Pr(correct prediction); $\frac {TP + TN} {TP + FP + FN + TN}$
+
+The above metrics work well for binary/classification errors, but you need something different for continuous data. Unlike in classification problems, with continuous data you're also concerned with *how close* you got to the right answer. For this, we might use the mean squared error (MSE) or the root mean squared error (RMSE):
+
+Mean squared error:
+
+$$ \frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2 $$
+
+Root mean squared error:
+
+$$ \sqrt{ \frac{1}{n} \sum_{i=1}^n (\hat{y}_i - y_i)^2 } $$
+
+where $\hat y_i$ is our prediction and $y_i$ is the true value for the $i^{th}$ element. The MSE takes the difference between the two (our error) and squares them to force them positive, then averages that error over all data points.
+
+The RMSE is the same thing, but taking the square root allows us to interpret the error on the same scale as the original data, as opposed to the squared scale.
+
+Here's a list of some common error metrics, as well as some notes about them:
+
+1. MSE/RMSE
+     - for continuous data, sensitive to outliers, particularly if variables are on really different scales
+2. Median absolute deviation
+     - more robust, it's the median of the absolute value of every $X$ minus the median of all $X$'s.
+     
+     $$ MAD = median ( |X_i - median(X)| )$$
+     
+3. Sensitivity (recall)
+     - if you want to minimize false negatives
+4. Specificity
+     - if you want to minimize false positives
+5. Accuracy
+     - weights false negatives/positives equally
+6. Concordance
+     - See Cohen's Kappa for an example???
+     
+# Receiver Operating Characteristic (ROC) curves
+So generally, even if you're just doing straight up binary classication tasks, your predictions will likely be quantitative and continuous. Usually, they'll come out as a *probability* of being in a particular class. Needless to say, this is ambiguous, and the threshold that you select for classification can yield different results.
+
+This means that you can tailor a model to return different results, which can be useful. But, "with great power" and whatnot...
+
+To aid in selecting a good threshold, you can use these ROC curves. On the x-axis you plot $1 - specificity$, or the probability of false positive $Pr(FP)$. On the y-axis you plot $sensitivity$, or the probability of true positive $Pr(TP)$. Then you plot a single point for every cutoff that you might choose. The resulting curve demonstrates the trade-off between sensitivity and specificity for this model. The very bottom left of this graph equates to high specificity (a low false positive rate) but low sensitivity (a low true positive rate); the top right of the graph equates to low specificity (a high false positive rate) and high sensitivity (a high true positive rate).
+
+This means that the top left of the graph is the holy grail zone: high specificity ***and*** high sensitivity.
+
+The diagonal from $(0, 0)$ to $(1, 1)$ is basically just the efficacy of a fair coin flip. Because it's perfectly random, the true positive rate and the false positive rate are always exactly complimentary.
+
+But how can you use this to compare one model against another? Well, you can take the area under the curve (AUC). Since the curve is anchored to $(0, 0)$ and $(1, 1)$, and the top left is perfect, then the largest AUC is the better predictor. So that diagonal line (the coin flip) has an $AUC = 0.5$. $AUC = 1$ is a perfect classifier. In general, $AUC > 0.8$ is "good."
+
+# Cross validation
+Super important, get this shit.
+
+Remember the Netflix prize's dataset structure: train > probe > quiz > test. Also remember that your accuracy on the training dataset is optimistic; you've only seen *this* data, and you'll definitely perform worse on brand new data. A better estimate for your accuracy will come from an independent dataset, like the test set at the very end. But to maintain that test dataset's independence, we can't use it when building the model. If we did, it would become part of the training dataset. So we're just estimating the test set accuracy with the training set.
+
+Cross validation is a method by which we can develop a more accurate estimate of the performance of our model while still limiting ourself to only the training dataset.
+
+Approach:
+
+1. using **only** the training set
+2. split it into 2 sub-datasets, likely 60/40 sub-training/sub-testing sets
+3. build a model on the sub-training set
+4. evaluate the model on the sub-test set
+5. repeat and average the estimated errors
+
+Used for:
+
+1. picking variables to include in a model
+2. picking the type of prediction function to use
+3. picking the parameters in the prediction function
+4. comparing different predictors
+
+## Sampling methods
+So how do you make your cross validated datasets? There are several ways you can split up your higher-order training dataset in order to cross-validate.
+
+### Random subsampling
+You can use random subsampling, which is exactly what it sounds like: you randomly select some portion of your data to serve as test data, then build your model on the rest (remember, this is all within the context of your higher-order *training* dataset).
+
+### k-fold
+You can also use $k$-fold cross validation, wherein you break your data up into $k$ contiguous subsets. You then evaluate your model $k$ times, each time using the $i^{th}$ subset as your test set and building your model on everything else. 3-fold cross validation would look like this:
+
+The `-----` segments represent the portion to be used as the test set; the `+++++` segments go into the training set.
+
+```
+----- | +++++ | +++++         i=1       the first segment is the test set
++++++ | ----- | +++++         i=2
++++++ | +++++ | -----         i=3
+```
+
+You end up evaluating the model 3 times, generating 3 different estimates of the error. You then average those together to estimate the out-of-sample error.
+
+### Leave one out
+This method means that you evaluate the model $n$ times, where $n$ is the number of examples in your total dataset (the higher-order training set, that is). At every iteration, you leave out only the $i^{th}$ example for testing, train the model on all of the other $n - 1$ examples, then predict that $i^{th}$ example. The average of all of those errors will be your out-of-sample error estimate
+
+## Considerations
+
+* for time series data, you can't randomly pull individual data points, as they likely depend on the data points that came before. You have to segment the data into "chunks" and then sample those in order to learn about the time-dependent structure of the data
+* for k-fold cross validation
+     - larger k = less bias, more variance
+     - smaller k = more bias, less variance
+* random sampling must be done **without replacement**
+* random sampling *with* replacement is the bootstrap, which is a totally different thing, and you have to really understand it to use it properly
+     - in general, the bootstrap underestimates the error
+     - can be corrected, but it's complicated
+          - here he references the .632 bootstrap estimator. It's cool. Basically, the in-sample error estimate is down-biased (underestimates the error); the leave-one-out *bootstrap* error estimate is up-biased (overestimates the error). This is also cool. When you bootstrap $n$ examples, you sample, with replacement, a new dataset also of size $n$. Because magic, each bootstrapped sample will contain, on average, 0.632 unique observations. When you combine this bootstrapping method with leave-one-out cross-validation, you're basically creating $n$ bootstrapped datasets, each of size $n - 1$, with 1 element left for testing. Each of those $n$ bootstrapped datasets is randomly sampled with replacement, and they have on average 0.632 unique observations.
+          - the .632 bootstrap correction estimates the out-of-sample error as $$Err_{.632} = 0.368 err_{train} + 0.632err_{boot}$$ which tries to marry the under and overestimates together
+          - there's also a $.632+$ estimator which is designed to be less biased, still. An exercise for the reader...
+
+# What data should you use?
+Here's the key idea: if you're trying to predict $X$, use data related to $X$. Use like to predict like. Use polls to predict elections (fivethirtyeight.com). Use player statistics to predict player performance (Moneyball). Use movie ratings to predict movie selection (Netflix). This seems really simple, but it's actually more important than sounds. Too often people will try to use whatever data is available to try and answer a question, even if the relationship between the two is flimsy. These statistical methods are really powerful, but they can't detect/predict relationships that don't actually exist in the world.
+
+Again, this seems really simple. But it's one of the most common problems in machine learning. The closer you can get to a systematic, mechanical process, the better. You can find things that *look like* convincing relationships (like Nobel prizes vs chocolate consumption per country), but if you can't logic your way through a reasonable process that links the data and the prediction, you're probably barking up the wrong tree.

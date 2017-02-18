@@ -20,6 +20,14 @@ Tools for exploring data, and how to use visualization to help.
 The importance of and the methods to create reproducible research.
 
 ## Course 6: Statistical Inference
-How to infer characteristics of the population from a sample drawn from the population.
+How to infer characteristics of the population from a sample drawn from the population
+
+## Course 7: Regression Models
+How to build and visualize them. Error, estimation, and prediction.
+WORK IN PROGRESS
+
+## Course 8: Practical Machine Learning
+How to do ML in the real world. Tools for model comparison and simplifying the workflow.
+WORK IN PROGRESS
 
 Additional courses will be posted as they're completed.
