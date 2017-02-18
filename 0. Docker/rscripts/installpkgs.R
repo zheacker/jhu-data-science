@@ -12,6 +12,7 @@ toInstall <- c(
      "ISLR",
      "kernlab",
      "KernSmooth",
+     "RANN",
      "UsingR",
      "wesanderson",
      "xlsx"
