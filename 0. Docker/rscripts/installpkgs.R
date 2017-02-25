@@ -8,6 +8,7 @@ toInstall <- c(
      "e1071",
      "formatR",
      "GGally",
+     "ggfortify",
      "ISLR",
      "kernlab",
      "KernSmooth",
