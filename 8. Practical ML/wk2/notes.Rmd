@@ -310,9 +310,394 @@ set.seed(13343)
 training$capAve <- training$capitalAve
 selectNA <- rbinom(dim(training)[1], size = 1, prob = 0.05)==1
 training$capAve[selectNA] <- NA
+# so now capAve is the same as capitalAve, just with some NAs
 
 # impute & standardize
+# we preProcess with knnImpute, then rewrite the capAve feature with the new imputed one
 preObj <- preProcess(training[, -58], method = "knnImpute")
 capAve <- predict(preObj, training[, -58])$capAve
+
+# standardize true values
+capAveTruth <- training$capitalAve
+capAveTruth <- (capAveTruth - mean(capAveTruth))/sd(capAveTruth)
+```
+
+Now we can compare `capAveTruth`, which is the original data with no `NA`'s, and `capAve`, which imputed some `NA`'s that we artificially introduced. Comparing these two will show us how well imputing estimated the true values.
+
+```{r}
+# compare the whole vector
+quantile(capAve - capAveTruth)
+
+# compare just imputed values to true values
+quantile((capAve - capAveTruth)[selectNA])
+
+# compare only the non-NA values
+quantile((capAve - capAveTruth)[!selectNA])
+```
+
+As we can see, the imputed values are pretty damn close to the original values.
+
+## Covariate creation
+Covariates are sometimes called predictors, or features. These are the $X$'s that you'll put into an algorithm. There are a couple of primary levels of covariate creation.
+
+1. Create from raw data - this is when you take the raw data, likely very messy, and turn it into categorical or quantitative measures that you can actually work with (might include compression)
+2. Transform existing, already tidy covariates - this is when you take existing variables and transform them somehow. He uses a count variable and then squares it, but it's unclear how to know when or how to transform features.
+
+### 1. Raw data --> covariates
+This depends heavily on the application. The main balancing act to keep in mind is summarization/simplicity vs. information loss.
+
+Some examples:
+
+- text files: frequency of words, frequency of phrases, frequency of capital letters
+- images: edges, corners, blobs, ridges (think computer vision)
+- webpages: number/type of images, position of elements, colors, videos, (think marketing A/B testing)
+- people: height, weight, hair color, sex, race, country of origin
+
+This is where subject expertise comes into play. The more you know about the specific nuances of a problem, the better off you'll be. When in doubt, err on the side of more features (just like with number of examples, more data is always better). Additionally, you *can* automate feature creation/selection, but this is tricky and requires great care.
+
+### 2. Tidy covariates --> new covariates
+This is more necessary for some methods (regression, SVMs) than for others (like classification trees). Remember that this should be done **only on the training set**. The best approach here is generally through exploratory analysis, plotting and visualizing things until you understand what needs to be done. And it's important to note that new covariates should be added to data frames (not replacing the old ones) and they should be named coherently. Let's demonstrate with the Wage data again.
+
+```{r}
+library(ISLR)
+library(caret)
+
+data(Wage)
+inTrain <- createDataPartition(y = Wage$wage, p = 0.7, list = FALSE)
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+```
+
+### Categorical features, factors
+Consider the jobclass variable in this dataset.
+
+```{r}
+levels(Wage$jobclass)
+```
+
+This features is a text field with 2 possible values, Industrial and Information. Doing math on text isn't a real thing, so we have to change this feature into something more useful. We can do that by changing it into a binary label, `0` or `1`.
+
+The `caret` package does this via the `dummyVars()` function.
+
+```{r}
+dummies <- dummyVars(wage ~ jobclass, data = training)
+str(dummies)
+head(predict(dummies, newdata = training))
+```
+
+So we can see that we now have 2 binary features that we can use to build a model.
+
+### Removing zero covariates
+Sometimes a feature will have no variability. For instance, if you make a variable that is TRUE if $X > 0$, and X is always $> 0$. This variable is useless because it has zero variability.
+
+The `nearZeroVar()` function can identify these worthless variables so we can get rid of the fuckers.
+
+```{r}
+nsv <- nearZeroVar(training, saveMetrics = TRUE)
+nsv
+```
+
+The output tells us how unique each feature is, and the last 2 columns tell us if a feature has zero, or near zero, variability.
+
+### Spline basis
+If we're doing generalized linear regression, we know that we're fitting linear models by default. We can create a new basis in order to fit higher-order functions.
+
+```{r}
+library(splines)
+bsBasis <- bs(training$age, 3)
+head(bsBasis)
+```
+
+The `bs()` function creates higher order variables. So above, we gave `bs` the age variable and asked for 3 degrees of freedom (a third order function, as in $\beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3$). So the first column in the result is just the age variable by itself (but scaled, for computational reasons). The 2nd column is $age^2$, and the third column is $age^3$.
+
+What we're really doing here is saying, "Instead of a linear relationship, I think the relationship between $age$ and $wage$ is non-linear, maybe quadratic." This is how you fit that quadratic equation.
+
+Here's what it looks like:
+```{r}
+lm1 <- lm(wage ~ bsBasis, data = training)
+p <- qplot(age, wage, data = training)
+fitY <- predict(lm1, newdata = training)
+p + geom_point(mapping = aes(x = training$age, y = fitY), color = "orange", size = 2)
+```
+
+#### Splines on the test set
+So you just created 3 new variables (well, technically 2, $age$ was already there). Now your training set and testing set are out of sync. Your training set now uses these 3 different $age$ variables, and your test set only has the 1 original. So you have to predict those same variables on your test set. This means that you take the $age$ variable in the test set and generate the 3 necessary coefficients to use this quadratic function that you **insisted** on using.
+
+```{r}
+head(predict(bsBasis, age = testing$age))
+```
+
+Notice that second argument. The `bs` function was called on `training$age`, so here, we need to tell `predict` that `age` should now be the `testing$age` data. If we didn't include this, then we'd be creating a new set of variables in the *test* set, but that model would be unrelated to the training set. Here, we're saying, "replace $age$ with the test set version of that variable, and apply the same model that you already built with `bs`."
+
+### Further reading
+The main takeaway here is that he points you to [this website](http://www.cs.nyu.edu/~yann/). This is some NYU research group, and it looks like it has a **SHIT TON** of awesome papers to read. Man, I should really order that giant e-reader...
+
+He also offers these techniques to learn more about covariate creation:
+
+- level 1 feature creation (feature generation)
+     - google "feature extraction for [thing, be it audio, images, whatevs"]
+     - err on the side of over-creation of features, you can weed them out later, if necessary
+     - in some applications, like image or voice (where there is definitely some *fundamental* data relationship), automated feature creation is possible, or even necessary
+          - this is where you get into deep learning shit; This is the kewl shit
+- level 2 feature creation (transformations)
+     - the `preProcess` function from `caret` is your friend, it can do cool shit
+     - create features if you think they will improve the fit
+     - use exploratory analysis on the training set to determine what transformations make sense
+     - be careful about overfitting! some set of features might perfectly match the training data, but if you can't *somewhat* intuit a fundamental relationship between the input and output, be wary
+
+## Woot! Pre-processing with PCA
+Here's the fun shit. You know what PCA is (review previous lectures if you need a refresher): compressing data by removing linearly dependent features, boiling the data down to the features that capture most of the information (variation) in the data.
+
+```{r}
+data("spam")
+inTrain <- createDataPartition(y = spam$type, p = 0.75, list = FALSE)
+
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+
+M <- abs(cor(training[, -58]))
+diag(M) <- 0
+M[30:35, 30:35]
+which(M > 0.8, arr.ind = TRUE)
+```
+
+For some reason, they only return `num415` and `num857` as highly correlated, but I'm showing a few more. But we can plot those variables against one another to see their relationship.
+
+```{r}
+names(spam)[c(34, 32)]
+qplot(spam[, 34], spam[, 32])
+```
+
+As we can see, these features are very highly correlated, and that means that the information contained in 1 is (mostly) contained in the other, too. So including them both in the model is redundant and unhelpful.
+
+You can review the PCA/SVD material for a more thorough explanation of this, but here are the highlights: you are trying to find a *new* set of variables that are uncorrelated and explain the most variance possible. This is closely related to 2 problems, 1 is statistical estimation, and the other is data compression. 
+
+There are 2 closely related methods for doing this:
+
+### Singular value decomposition (SVD)
+If $X$ is a matrix where every variable is in a column, and every observation is in a row, then the SVD of $X$ is $$X=UDV^T$$. The columns in $U$ are all orthogonal to one another, as are the columns in $V$; they're the left singular vectors and the right singular vectors, respectively. $D$ is a diagonal matrix of the singular values.
+
+### Principal component analysis (PCA)
+The principal components are equal to the right singular values ($V$) **if** you first scale the variables ($(X - mean(X))/sd(X)$).
+
+There is apparently a nifty `prcomp()` function, but this example isn't really clear as to how it works. But we select the 2 variables that we discovered to be highly correlated (above), `num415` and `num857`, and we run `prcomp` on them. This returns the principle components of this data. Remember that the principal components are just a new basis for these vectors; the basis provides orthogonal dimensions, and we map the data onto the new basis.
+
+```{r}
+smallSpam <- spam[, c(34, 32)]
+PCs <- prcomp(smallSpam)
+str(PCs)
+qplot(PCs$x[, 1], PCs$x[, 2])
+```
+
+You can also look at `PCs$rotation`, which shows you the rotation matrix for these principal components. Recall that this is the matrix which converts our original dimensions into the new orthogonal basis vectors.
+
+```{r}
+head(PCs$rotation)
+```
+
+So now let's do PCA on the total spam dataset.
+
+```{r}
+typeColor <- ((spam$type=="spam")*1 + 1)
+PCs <- prcomp((spam[, -58] + 1))
+qplot(PCs$x[, 1], PCs$x[, 2], color = as.factor(typeColor))
+```
+
+So we've done PCA on the entire dataset (excluding column 58, which is the response), but we can see that the resulting plot looks kinda shitty. Let's apply a common transformation and see what we get.
+
+```{r}
+PCs <- prcomp(log10(spam[, -58] + 1))
+qplot(PCs$x[, 1], PCs$x[, 2], color = as.factor(typeColor))
+```
+
+Much better. We can see that the spam messages (blue color, level 2) tend to have a higher value on PC1.
+
+#### PCA with `caret`
+This can be done directly with `caret`, but it takes a slightly different perspective. Here, we create our pre-process object, which retains the information about how we want to transform the data. But the `preProc` variable *only retains the information* about the transformations. In order to *actually* transform the data, we have to call `predict()` to cast the data onto the new basis.
+
+```{r}
+# pass preProcess() 1) the data 2) the method pca and 3) the # of principal components you want
+preProc <- preProcess(log10(spam[, -58] + 1), method = "pca", pcaComp = 2)
+spamPC <- predict(preProc, log10(spam[, -58] + 1))
+qplot(spamPC[, 1], spamPC[, 2], color = as.factor(typeColor))
+```
+
+Again, we see that the spam messages (blue color, level 2) have higher values on PC1.
+
+Now let's look specifically at the training dataset. This is the exact same procedure as above, only we perform it on the training data instead of the entire spam dataset, and then we train a generalized linear model on the principal-component-transformed training data.
+
+```{r}
+library(dplyr)
+preProc <- preProcess(log10(training[, -58] + 1), method = "pca", pcaComp = 2)
+trainPC <- predict(preProc, log10(training[, -58] + 1))
+tmpTrain <- bind_cols(trainPC, select(training, type))
+modelFit <- train(type ~ ., method="glm", data=tmpTrain)
+```
+
+Now we want to use this model to make predictions on our test data. So to recap: we've split the data into train/test sets, transformed the training set (all features) into 2 principal components, then fit a model to those 2 new PCA features. So we still need to do the PCA transformation on the *test set's* features, then make predictions with the model.
+
+```{r}
+# this line log transforms the features, excluding the response
+# and then applies the preProc object to "predict" the response on the new PCA basis
+testPC <- predict(preProc, log10(testing[, -58] + 1))
+
+# and then we pass the model (from our training set) to predict on the test set
+# then make a confusion matrix to see our performance
+confusionMatrix(testing$type, predict(modelFit, testPC))
+```
+
+Now take a look at the accuracy in those results. Pretty damn good. We were able to condense the entire 57-feature dataset into **just 2 principal component features**, and we still got good accuracy.
+
+#### One-liner
+We manually transformed our training dataset in the preceeding example, but you can just do the whole thing with the `train` function from `caret`.
+
+**NOTE:** the `data` argument seems to necessarily be first.
+
+```{r}
+modelFit <- train(data = training, type ~ ., method = "glm", preProcess = "pca")
+confusionMatrix(testing$type, predict(modelFit, testing))
+```
+
+## Predicting with regression
+This is gonna be real similar to both the regression class and the section above. We're just going to fit a simple regression model, which is easy to implement. (We'll cover multivariate regression in the next lecture video.) These models are easy to implement, easy to interpret, and work well in linear settings.
+
+We'll start with the old faithful erruptions data.
+
+```{r}
+data(faithful)
+set.seed(333)
+inTrain <- createDataPartition(y = faithful$waiting, p = 0.5, list = FALSE)
+trainFaith <- faithful[inTrain, ]
+testFaith <- faithful[-inTrain, ]
+
+head(trainFaith)
+
+qplot(data = trainFaith, waiting, eruptions)
+```
+
+So we can see that there is a linear relationship of some sort here. So we'll fit a linear model. Remember, the equation for a linear model is $$ED_i = b_0 + b_1WT_i + e_i$$ where $ED$ is eruption duration and $WT$ is waiting time.
+
+```{r}
+lm1 <- lm(data = trainFaith, eruptions ~ waiting)
+summary(lm1)
+```
+
+Let's go through some of those elements of the summary.
+
+The `Call` just repeats your function call.
+
+The `Residuals` item shows some quartile statistics about your residuals, which is how much the data points deviate from the model.
+
+The `Coefficients` relate to $b_0$ and $b_1$. This line provides the estimate for this coefficient, the standard error, the t-value, and the $Pr(>|t|)$. Remember that the standard error is the standard deviation of the sampling distribution of a statistic, and the sampling distribution is the distribution of that statistic when drawn from *all possible samples from a population*.  
+
+Let's plot our regression model against the original data.
+
+```{r}
+ggplot(data = trainFaith, aes(waiting, eruptions)) + geom_point(color = "steelblue") + geom_abline(slope = lm1$coefficients[2], intercept = lm1$coefficients[1])
+```
+
+We can also, of course, predict new data with our model. We can do that manually:
+```{r}
+coef(lm1)[1] + coef(lm1)[2]*80
+```
+
+Or we can use the `predict` function:
+```{r}
+newdata <- data.frame(waiting = c(80, 81, 82))
+predict(lm1, newdata)
+```
+
+Ok, so we've built the model on the training set, so we need to see how it does on the test set.
+
+```{r}
+p1 <- ggplot(data = trainFaith, aes(waiting, eruptions)) + geom_point(color = "steelblue") + geom_abline(intercept = coef(lm1)[1], slope = coef(lm1)[2]) + ggtitle("train set")
+
+p2 <- ggplot(data = testFaith, aes(waiting, eruptions)) + geom_point(color = "steelblue") + geom_abline(intercept = coef(lm1)[1], slope = coef(lm1)[2]) + ggtitle("test set")
+
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+Looks pretty good, but now we need to quantify the training set/test set errors. Here's the manual method for the root mean squared error (RMSE).
+
+```{r}
+# RMSE on training
+sqrt(sum((lm1$fitted - trainFaith$eruptions)^2))
+
+# RMSE on test set
+sqrt(sum((predict(lm1, newdata = testFaith) - testFaith$eruptions)^2))
+```
+
+We can also plot the model with its prediction interval.
+
+```{r}
+preds <- as.data.frame(predict(lm1, testFaith, interval = "prediction"))
+preds
+head(testFaith)
+ggtmp <- bind_cols(testFaith, select(preds, lwr:upr))
+ggtmp
+
+intplot <- ggplot(data = ggtmp, aes(waiting, eruptions)) + geom_point(color = "steelblue") + geom_abline(intercept = coef(lm1)[1], slope = coef(lm1)[2])
+intplot + geom_line(data = ggtmp, aes(waiting, lwr), color = "darkblue") + geom_line(data=ggtmp, aes(waiting, upr), color = "darkblue")
+```
+
+And after all that mess, you can apparently do this with the `caret` package.
+
+```{r}
+modFit <- train(data = trainFaith, eruptions ~ waiting, method = "lm")
+summary(modFit$finalModel)
+```
+
+## Multivariate regression prediction
+Awesome, let's do it all again with multivariate data. This is not only about predicting with multiple features, it's about exploring a dataset to identify which predictors to focus on. We'll use the wage data again. First thing we do is select only the data that we want to use as predictors, which means everything but the `logwage` variable. That's what we're going to predict.
+
+Actually we can get rid of `sex` and `region` as well, since we know they're constants.
+
+```{r}
+data("Wage")
+head(Wage)
+Wage <- select(Wage, -logwage, -sex, -region)
+summary(Wage)
+```
+
+Now we split it into training/test sets.
+```{r}
+inTrain <- createDataPartition(y = Wage$wage, p = 0.7, list = FALSE)
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+```{r, fig.width=10, fig.height=10}
+featurePlot(x = select(training, -wage), y = select(training, wage), plot="pairs")
+```
+
+And because that's crazy, let's pick a couple of variables.
+
+```{r, fig.width=8, fig.height=8}
+featurePlot(x = select(Wage, age, education, jobclass), y = select(Wage, wage), plot = "pairs")
+```
+
+So we're going to throw a bunch of plots against the wall. We'll start with wage vs. age, and he then colors that scatterplot by some other variables, and I'm going to kind of do my own thing.
+```{r}
+qplot(data = Wage, age, wage)
+qplot(data = Wage, age, wage, color = education)
+qplot(data = Wage, age, wage, color = jobclass)
+qplot(data = Wage, jobclass, wage, fill = jobclass, geom = c("violin"))
+qplot(data = Wage, education, wage, fill = education, geom = c("violin"))
+```
+
+So now we'll fit our multivariate linear model.
+
+```{r}
+modFit <- train(wage ~ age + jobclass + education, method = "lm", data = training)
+finalMod <- modFit$finalModel
+print(modFit)
+plot(finalMod, pch=19, cex=0.5, col="#00000010")
+```
+
+```{r}
+qplot(x = finalMod$fitted.values, y = finalMod$residuals, )
 ```
 
