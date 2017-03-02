@@ -656,7 +656,7 @@ Actually we can get rid of `sex` and `region` as well, since we know they're con
 ```{r}
 data("Wage")
 head(Wage)
-Wage <- select(Wage, -logwage, -sex, -region)
+Wage <- select(Wage, -logwage, -sex, -region) %>% arrange(jobclass)
 summary(Wage)
 ```
 
@@ -688,16 +688,62 @@ qplot(data = Wage, jobclass, wage, fill = jobclass, geom = c("violin"))
 qplot(data = Wage, education, wage, fill = education, geom = c("violin"))
 ```
 
-So now we'll fit our multivariate linear model.
+So now we'll fit our multivariate linear model, save off the actual `lm` object as `finalMod`, and plot the residuals vs. fitted values.
 
 ```{r}
 modFit <- train(wage ~ age + jobclass + education, method = "lm", data = training)
 finalMod <- modFit$finalModel
 print(modFit)
-plot(finalMod, pch=19, cex=0.5, col="#00000010")
+plot(finalMod, 1, pch=19, cex=0.5, col="#00000010")
+```
+
+And now we have *finally* figured out how to do it with ggplot2 (and ggfortify).
+
+```{r}
+library(ggfortify)
+autoplot(finalMod, 1)
+```
+
+So what does that plot mean? Well, the residuals are how much error existed in our predictions; they're the difference between the prediction and the true value. And we've plotted them against the fitted values, which are our actual predictions. So we want these data points to be centered around zero--because we want to have 0 error, on average--and we want them to be random. Here we see a slight deviation from zero in the upper range.
+
+### What to do with residual plots
+It's important to understand what you can do with these graphics. For instance, you can color by *another variable* that was unused in your model. We didn't include race, so if we add it to the visualization here, then we'll be able to see if any pattern emerges that might indicate that race indeed relates to wage.
+
+```{r}
+qplot(finalMod$fitted.values, finalMod$residuals, color = race, data = training)
+```
+
+It's also important to plot the residuals against their **row number**. Okay, now this seems cray.
+
+Why would you plot by row number, which is likely an utterly meaningless metric? Well, because it *might not be utterly meaningless*. If your data is sorted in any way that is related to the metrics in the model, then the residuals could exhibit a pattern as you move through the ordered dataset. Here we see:
+
+```{r}
+qplot(1:length(training$wage), finalMod$residuals)
+```
+
+This looks pretty randomly distributed, so we can rule out any dependance on the sort order.
+
+### All-variables model
+For kicks and giggles, let's build a model with all of the features in the Wage dataset.
+
+```{r}
+data("Wage")
+Wage <- select(Wage, -logwage, -sex, -region)
+
+inTrain <- createDataPartition(y = Wage$wage, p = 0.7, list = FALSE)
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+str(Wage)
 ```
 
 ```{r}
-qplot(x = finalMod$fitted.values, y = finalMod$residuals, )
+modFit <- train(wage ~ year + age + maritl + race + education + jobclass + health + health_ins, method = "lm", data = training, )
+finalMod <- modFit$finalModel
+print(modFit)
+autoplot(finalMod, 1)
+```
+
+```{r}
+qplot(training$health_ins, finalMod$residuals, geom = "jitter")
 ```
 
